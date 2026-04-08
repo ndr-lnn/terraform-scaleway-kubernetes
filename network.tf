@@ -26,7 +26,7 @@ locals {
 
   # Lists for control plane nodes
   control_plane_public_ipv4_list  = compact(distinct([for ip in scaleway_instance_ip.control_plane : ip.address]))
-  control_plane_public_ipv6_list  = compact(distinct([for server in scaleway_instance_server.control_plane : server.ipv6_address]))
+  control_plane_public_ipv6_list  = [] # Scaleway instance_server has no ipv6_address attribute
   control_plane_private_ipv4_list = compact(distinct([for ip in data.scaleway_ipam_ip.control_plane : ip.address]))
 
   # Control plane VIP (LB-based only -- no floating IP on Scaleway for instances)
@@ -34,7 +34,7 @@ locals {
 
   # Lists for worker nodes
   worker_public_ipv4_list  = compact(distinct([for ip in scaleway_instance_ip.worker : ip.address]))
-  worker_public_ipv6_list  = compact(distinct([for server in scaleway_instance_server.worker : server.ipv6_address]))
+  worker_public_ipv6_list  = [] # Scaleway instance_server has no ipv6_address attribute
   worker_private_ipv4_list = compact(distinct([for ip in data.scaleway_ipam_ip.worker : ip.address]))
 }
 

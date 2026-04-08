@@ -9,7 +9,7 @@ locals {
   talos_primary_node_name         = sort(keys(scaleway_instance_server.control_plane))[0]
   talos_primary_node_private_ipv4 = data.scaleway_ipam_ip.control_plane[local.talos_primary_node_name].address
   talos_primary_node_public_ipv4  = var.talos_public_ipv4_enabled ? scaleway_instance_ip.control_plane[local.talos_primary_node_name].address : null
-  talos_primary_node_public_ipv6  = var.talos_public_ipv6_enabled ? scaleway_instance_server.control_plane[local.talos_primary_node_name].ipv6_address : null
+  talos_primary_node_public_ipv6  = null # Scaleway instance_server has no ipv6_address attribute
 
   # Talos API
   talos_api_port = 50000
@@ -233,7 +233,7 @@ resource "talos_machine_configuration_apply" "control_plane" {
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.control_plane[each.key].machine_configuration
-  endpoint                    = var.cluster_access == "private" ? data.scaleway_ipam_ip.control_plane[each.key].address : coalesce(scaleway_instance_ip.control_plane[each.key].address, scaleway_instance_server.control_plane[each.key].ipv6_address)
+  endpoint                    = var.cluster_access == "private" ? data.scaleway_ipam_ip.control_plane[each.key].address : scaleway_instance_ip.control_plane[each.key].address
   node                        = data.scaleway_ipam_ip.control_plane[each.key].address
 
   apply_mode = var.talos_machine_configuration_apply_mode
@@ -292,7 +292,7 @@ resource "talos_machine_configuration_apply" "worker" {
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.worker[each.key].machine_configuration
-  endpoint                    = var.cluster_access == "private" ? data.scaleway_ipam_ip.worker[each.key].address : coalesce(scaleway_instance_ip.worker[each.key].address, scaleway_instance_server.worker[each.key].ipv6_address)
+  endpoint                    = var.cluster_access == "private" ? data.scaleway_ipam_ip.worker[each.key].address : scaleway_instance_ip.worker[each.key].address
   node                        = data.scaleway_ipam_ip.worker[each.key].address
   apply_mode                  = var.talos_machine_configuration_apply_mode
 
