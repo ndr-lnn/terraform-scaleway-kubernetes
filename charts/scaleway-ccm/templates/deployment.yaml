@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-controller-manager
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: scaleway-cloud-controller-manager
+  template:
+    metadata:
+      labels:
+        app: scaleway-cloud-controller-manager
+    spec:
+      serviceAccountName: cloud-controller-manager
+      hostNetwork: true
+      dnsPolicy: Default
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: scaleway-cloud-controller-manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --cloud-provider=scaleway
+            - --leader-elect=true
+            - --allow-untagged-cloud
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          {{- if .Values.env }}
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

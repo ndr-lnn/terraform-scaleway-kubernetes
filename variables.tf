@@ -1,0 +1,1813 @@
+# Cluster Configuration
+variable "cluster_name" {
+  type        = string
+  description = "Specifies the name of the cluster. This name is used to identify the cluster within the infrastructure and should be unique across all deployments."
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$", var.cluster_name))
+    error_message = "The cluster name must start and end with a lowercase letter or number, can contain hyphens, and must be no longer than 32 characters."
+  }
+}
+
+variable "cluster_domain" {
+  type        = string
+  default     = "cluster.local"
+  description = "Specifies the domain name used by the cluster. This domain name is integral for internal networking and service discovery within the cluster. The default is 'cluster.local', which is commonly used for local Kubernetes clusters."
+
+  validation {
+    condition     = can(regex("^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)*(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$", var.cluster_domain))
+    error_message = "The cluster domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "cluster_rdns" {
+  type        = string
+  default     = null
+  description = "Specifies the general reverse DNS FQDN for the cluster, used for internal networking and service discovery. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+
+  validation {
+    condition     = var.cluster_rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.cluster_rdns))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "cluster_rdns_ipv4" {
+  type        = string
+  default     = null
+  description = "Defines the IPv4-specific reverse DNS FQDN for the cluster, crucial for network operations and service discovery. Supports dynamic placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+
+  validation {
+    condition     = var.cluster_rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.cluster_rdns_ipv4))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "cluster_rdns_ipv6" {
+  type        = string
+  default     = null
+  description = "Defines the IPv6-specific reverse DNS FQDN for the cluster, crucial for network operations and service discovery. Supports dynamic placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+
+  validation {
+    condition     = var.cluster_rdns_ipv6 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.cluster_rdns_ipv6))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "cluster_access" {
+  type        = string
+  default     = "public"
+  description = "Defines how the cluster is accessed externally. Specifies if access should be through public or private IPs."
+
+  validation {
+    condition     = contains(["public", "private"], var.cluster_access)
+    error_message = "Invalid value for 'cluster_access'. Valid options are 'public' or 'private'."
+  }
+}
+
+variable "cluster_kubeconfig_path" {
+  type        = string
+  default     = null
+  description = "If not null, the kubeconfig will be written to a file specified."
+}
+
+variable "cluster_talosconfig_path" {
+  type        = string
+  default     = null
+  description = "If not null, the talosconfig will be written to a file specified."
+}
+
+variable "cluster_graceful_destroy" {
+  type        = bool
+  default     = true
+  description = "Determines whether a graceful destruction process is enabled for Talos nodes. When enabled, it ensures that nodes are properly drained and decommissioned before being destroyed, minimizing disruption in the cluster."
+}
+
+variable "cluster_healthcheck_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether health checks are executed during cluster deployment and upgrade."
+}
+
+variable "cluster_allow_scheduling_on_control_planes" {
+  type        = bool
+  default     = null
+  description = "Allow scheduling on control plane nodes. If this is false, scheduling on control plane nodes is explicitly disabled. Defaults to true if there are no workers present."
+}
+
+
+# Scaleway Auth
+variable "scaleway_project_id" {
+  description = "Scaleway project UUID"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.scaleway_project_id))
+    error_message = "scaleway_project_id must be a valid UUID."
+  }
+}
+
+variable "scaleway_access_key" {
+  description = "Scaleway API access key. Falls back to SCW_ACCESS_KEY env var when null. Effectively required for CCM/CSI secrets."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "scaleway_secret_key" {
+  description = "Scaleway API secret key. Falls back to SCW_SECRET_KEY env var when null. Effectively required for CCM/CSI secrets."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "scaleway_zone" {
+  description = "Default Scaleway availability zone"
+  type        = string
+  default     = "fr-par-1"
+
+  validation {
+    condition     = contains(["fr-par-1", "fr-par-2", "fr-par-3", "nl-ams-1", "nl-ams-2", "nl-ams-3", "pl-waw-1", "pl-waw-2", "pl-waw-3"], var.scaleway_zone)
+    error_message = "scaleway_zone must be a valid Scaleway availability zone."
+  }
+}
+
+variable "scaleway_region" {
+  description = "Default Scaleway region"
+  type        = string
+  default     = "fr-par"
+
+  validation {
+    condition     = contains(["fr-par", "nl-ams", "pl-waw"], var.scaleway_region)
+    error_message = "scaleway_region must be a valid Scaleway region."
+  }
+}
+
+
+# Client Tools
+variable "client_prerequisites_check_enabled" {
+  type        = bool
+  default     = true
+  description = "Controls whether a preflight check verifies that required client tools are installed before provisioning."
+}
+
+variable "talosctl_version_check_enabled" {
+  type        = bool
+  default     = true
+  description = "Controls whether a preflight check verifies the local talosctl client version before provisioning."
+}
+
+variable "talosctl_retries" {
+  type        = number
+  default     = 100
+  description = "Specifies how many times talosctl operations should retry before failing. This setting helps improve resilience against transient network issues or temporary API unavailability."
+
+  validation {
+    condition     = var.talosctl_retries >= 0
+    error_message = "The talosctl retries value must be at least 0."
+  }
+}
+
+
+# Network Configuration
+variable "network_ipv4_cidr" {
+  type        = string
+  default     = "10.0.0.0/16"
+  description = "Specifies the main IPv4 CIDR block for the network. This CIDR block is used to allocate IP addresses within the network."
+}
+
+variable "network_node_ipv4_cidr" {
+  type        = string
+  default     = null # 10.0.64.0/19 when network_ipv4_cidr is 10.0.0.0/16
+  description = "Specifies the Node IPv4 CIDR used for allocating IP addresses to both Control Plane and Worker nodes within the cluster. If not explicitly provided, a default subnet is dynamically calculated from the specified network_ipv4_cidr."
+}
+
+variable "network_node_ipv4_subnet_mask_size" {
+  type        = number
+  default     = null # /25 when network_pod_ipv4_cidr is 10.0.128.0/17
+  description = "Specifies the IPv4 subnet mask size used for node pools within the cluster. This setting determines the network segmentation precision, with a smaller mask size allowing more IP addresses per subnet. If not explicitly provided, an optimal default size is dynamically calculated from the network_pod_ipv4_cidr."
+}
+
+variable "network_service_ipv4_cidr" {
+  type        = string
+  default     = null # 10.0.96.0/19 when network_ipv4_cidr is 10.0.0.0/16
+  description = "Specifies the Service IPv4 CIDR block used for allocating ClusterIPs to services within the cluster. If not provided, a default subnet is dynamically calculated from the specified network_ipv4_cidr."
+}
+
+variable "network_pod_ipv4_cidr" {
+  type        = string
+  default     = null # 10.0.128.0/17 when network_ipv4_cidr is 10.0.0.0/16
+  description = "Defines the Pod IPv4 CIDR block allocated for use by pods within the cluster. This CIDR block is essential for internal pod communications. If a specific subnet is not provided, a default is dynamically calculated from the network_ipv4_cidr."
+}
+
+variable "network_native_routing_ipv4_cidr" {
+  type        = string
+  default     = null
+  description = "Specifies the IPv4 CIDR block that the CNI assumes will be routed natively by the underlying network infrastructure without the need for SNAT."
+}
+
+
+# Firewall Configuration
+variable "firewall_use_current_ipv4" {
+  type        = bool
+  default     = null
+  description = "Determines whether the current IPv4 address is used for Talos and Kube API firewall rules. If `cluster_access` is set to `public`, the default is true."
+}
+
+variable "firewall_use_current_ipv6" {
+  type        = bool
+  default     = null
+  description = "Determines whether the current IPv6 /64 CIDR is used for Talos and Kube API firewall rules. If `cluster_access` is set to `public`, the default is true."
+}
+
+variable "firewall_extra_rules" {
+  type = list(object({
+    description     = string
+    direction       = string
+    source_ips      = optional(list(string), [])
+    destination_ips = optional(list(string), [])
+    protocol        = string
+    port            = optional(string)
+  }))
+  default     = []
+  description = "Additional firewall rules to apply to the cluster."
+
+  validation {
+    condition = alltrue([
+      for rule in var.firewall_extra_rules : (
+        rule.direction == "in" || rule.direction == "out"
+      )
+    ])
+    error_message = "Each rule must specify 'direction' as 'in' or 'out'."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.firewall_extra_rules : (
+        rule.protocol == "tcp" || rule.protocol == "udp" || rule.protocol == "icmp" ||
+        rule.protocol == "gre" || rule.protocol == "esp"
+      )
+    ])
+    error_message = "Each rule must specify 'protocol' as 'tcp', 'udp', 'icmp', 'gre', or 'esp'."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.firewall_extra_rules : (
+        (rule.direction == "in" && rule.source_ips != null && (rule.destination_ips == null || length(rule.destination_ips) == 0)) ||
+        (rule.direction == "out" && rule.destination_ips != null && (rule.source_ips == null || length(rule.source_ips) == 0))
+      )
+    ])
+    error_message = "For 'in' direction, 'source_ips' must be provided and 'destination_ips' must be null or empty. For 'out' direction, 'destination_ips' must be provided and 'source_ips' must be null or empty."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.firewall_extra_rules : (
+        (rule.protocol != "icmp" && rule.protocol != "gre" && rule.protocol != "esp") || (rule.port == null)
+      )
+    ])
+    error_message = "Port must not be specified when 'protocol' is 'icmp', 'gre', or 'esp'."
+  }
+
+  // Validation to ensure port is specified for protocols that have ports
+  validation {
+    condition = alltrue([
+      for rule in var.firewall_extra_rules : (
+        rule.protocol == "tcp" || rule.protocol == "udp" ? rule.port != null : true
+      )
+    ])
+    error_message = "Port must be specified when 'protocol' is 'tcp' or 'udp'."
+  }
+}
+
+variable "firewall_api_source" {
+  type        = list(string)
+  default     = null
+  description = "Source networks that have access to Kube and Talos API. If set, this overrides the firewall_use_current_ipv4 and firewall_use_current_ipv6 settings."
+}
+
+variable "firewall_kube_api_source" {
+  type        = list(string)
+  default     = null
+  description = "Source networks that have access to Kube API. If set, this overrides the firewall_use_current_ipv4 and firewall_use_current_ipv6 settings."
+}
+
+variable "firewall_talos_api_source" {
+  type        = list(string)
+  default     = null
+  description = "Source networks that have access to Talos API. If set, this overrides the firewall_use_current_ipv4 and firewall_use_current_ipv6 settings."
+}
+
+variable "firewall_id" {
+  type        = string
+  default     = null
+  description = "ID of an existing Scaleway Security Group to use instead of creating a new one. When set, firewall management is delegated to an external resource and this module will only attach the security group to servers."
+}
+
+
+# Control Plane
+variable "kube_api_admission_control" {
+  type        = list(any)
+  default     = []
+  description = "List of admission control settings for the Kube API. If set, this overrides the default admission control."
+}
+
+variable "control_plane_nodepools" {
+  type = list(object({
+    name        = string
+    zone        = string
+    type        = string
+    backups     = optional(bool, false)
+    keep_disk   = optional(bool, false)
+    labels      = optional(map(string), {})
+    annotations = optional(map(string), {})
+    taints      = optional(list(string), [])
+    count       = optional(number, 1)
+    rdns        = optional(string)
+    rdns_ipv4   = optional(string)
+    rdns_ipv6   = optional(string)
+  }))
+  description = "Configures the number and attributes of Control Plane nodes."
+
+  validation {
+    condition     = length(var.control_plane_nodepools) == length(distinct([for np in var.control_plane_nodepools : np.name]))
+    error_message = "Control Plane nodepool names must be unique to avoid configuration conflicts."
+  }
+
+  validation {
+    condition     = sum([for np in var.control_plane_nodepools : np.count]) <= 9
+    error_message = "The total count of all nodes in Control Plane nodepools must not exceed 9."
+  }
+
+  validation {
+    condition     = sum([for np in var.control_plane_nodepools : np.count]) % 2 == 1
+    error_message = "The sum of all Control Plane nodes must be odd to ensure high availability."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : contains([
+        "fr-par-1", "fr-par-2", "fr-par-3", "nl-ams-1", "nl-ams-2", "nl-ams-3", "pl-waw-1", "pl-waw-2", "pl-waw-3"
+      ], np.zone)
+    ])
+    error_message = "Each nodepool zone must be a valid Scaleway availability zone (e.g., 'fr-par-1', 'nl-ams-1', 'pl-waw-1')."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : length(var.cluster_name) + length(np.name) <= 56
+    ])
+    error_message = "The combined length of the cluster name and any Control Plane nodepool name must not exceed 56 characters."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : np.rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns))
+    ])
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : np.rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns_ipv4))
+    ])
+    error_message = "The rdns_ipv4 must be a valid IPv4 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : np.rdns_ipv6 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns_ipv6))
+    ])
+    error_message = "The rdns_ipv6 must be a valid IPv6 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+}
+
+variable "control_plane_config_patches" {
+  type        = any
+  default     = []
+  description = "List of configuration patches applied to the Control Plane nodes."
+}
+
+
+# Worker
+variable "worker_nodepools" {
+  type = list(object({
+    name            = string
+    zone            = string
+    type            = string
+    backups         = optional(bool, false)
+    keep_disk       = optional(bool, false)
+    labels          = optional(map(string), {})
+    annotations     = optional(map(string), {})
+    taints          = optional(list(string), [])
+    count           = optional(number, 1)
+    rdns            = optional(string)
+    rdns_ipv4       = optional(string)
+    rdns_ipv6       = optional(string)
+    placement_group = optional(bool, true)
+  }))
+  default     = []
+  description = "Defines configuration settings for Worker node pools within the cluster."
+
+  validation {
+    condition     = length(var.worker_nodepools) == length(distinct([for np in var.worker_nodepools : np.name]))
+    error_message = "Worker nodepool names must be unique to avoid configuration conflicts."
+  }
+
+  validation {
+    condition = sum(concat(
+      [for worker_nodepool in var.worker_nodepools : coalesce(worker_nodepool.count, 1)],
+      [for control_nodepool in var.control_plane_nodepools : coalesce(control_nodepool.count, 1)]
+    )) <= 100
+    error_message = "The total count of nodes in both worker and Control Plane nodepools must not exceed 100 to ensure manageable cluster size."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : contains([
+        "fr-par-1", "fr-par-2", "fr-par-3", "nl-ams-1", "nl-ams-2", "nl-ams-3", "pl-waw-1", "pl-waw-2", "pl-waw-3"
+      ], np.zone)
+    ])
+    error_message = "Each nodepool zone must be a valid Scaleway availability zone (e.g., 'fr-par-1', 'nl-ams-1', 'pl-waw-1')."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : length(var.cluster_name) + length(np.name) <= 56
+    ])
+    error_message = "The combined length of the cluster name and any Worker nodepool name must not exceed 56 characters."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : np.rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns))
+    ])
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : np.rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns_ipv4))
+    ])
+    error_message = "The rdns_ipv4 must be a valid IPv4 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : np.rdns_ipv6 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns_ipv6))
+    ])
+    error_message = "The rdns_ipv6 must be a valid IPv6 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+}
+
+variable "worker_config_patches" {
+  type        = any
+  default     = []
+  description = "List of configuration patches applied to the Worker nodes."
+}
+
+
+# Talos
+variable "talos_version" {
+  type        = string
+  default     = "v1.12.6" # https://github.com/siderolabs/talos
+  description = "Specifies the version of Talos to be used in generated machine configurations."
+}
+
+variable "talos_schematic_id" {
+  type        = string
+  default     = null
+  description = "Specifies the Talos schematic ID used for selecting the specific Image and Installer versions in deployments. This has precedence over `talos_image_extensions`"
+}
+
+variable "talos_image_extensions" {
+  type        = list(string)
+  default     = []
+  description = "Specifies Talos image extensions for additional functionality on top of the default Talos Linux capabilities. See: https://github.com/siderolabs/extensions"
+}
+
+variable "talos_upgrade_debug" {
+  type        = bool
+  default     = false
+  description = "Enable debug operation from kernel logs during Talos upgrades. When true, --wait is set to true by talosctl."
+}
+
+variable "talos_upgrade_force" {
+  type        = bool
+  default     = false
+  description = "Force the Talos upgrade by skipping etcd health and member checks."
+}
+
+variable "talos_upgrade_insecure" {
+  type        = bool
+  default     = false
+  description = "Upgrade using the insecure (no auth) maintenance service."
+}
+
+variable "talos_upgrade_reboot_mode" {
+  type        = string
+  default     = null
+  description = "Select the reboot mode during upgrade. Mode \"powercycle\" bypasses kexec. Valid values: \"default\" or \"powercycle\"."
+
+  validation {
+    condition     = var.talos_upgrade_reboot_mode == null || contains(["default", "powercycle"], var.talos_upgrade_reboot_mode)
+    error_message = "The talos_upgrade_reboot_mode must be \"default\" or \"powercycle\"."
+  }
+}
+
+variable "talos_reboot_debug" {
+  type        = bool
+  default     = false
+  description = "Enable debug operation from kernel logs during Talos reboots. When true, --wait is set to true by talosctl."
+}
+
+variable "talos_reboot_mode" {
+  type        = string
+  default     = null
+  description = "Select the reboot mode. Mode \"powercycle\" bypasses kexec, and mode \"force\" skips graceful teardown. Valid values: \"default\", \"powercycle\", or \"force\"."
+
+  validation {
+    condition     = var.talos_reboot_mode == null || contains(["default", "powercycle", "force"], var.talos_reboot_mode)
+    error_message = "The talos_reboot_mode must be \"default\", \"powercycle\", or \"force\"."
+  }
+}
+
+variable "talos_upgrade_stage" {
+  type        = bool
+  default     = false
+  description = "Stage the Talos upgrade to perform it after a reboot."
+}
+
+variable "talos_discovery_kubernetes_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable or disable Kubernetes-based Talos discovery service. Deprecated as of Kubernetes v1.32, where the AuthorizeNodeWithSelectors feature gate is enabled by default."
+}
+
+variable "talos_discovery_service_enabled" {
+  type        = bool
+  default     = true
+  description = "Enable or disable Sidero Labs public Talos discovery service."
+}
+
+variable "talos_kubelet_extra_mounts" {
+  type = list(object({
+    source      = string
+    destination = optional(string)
+    type        = optional(string, "bind")
+    options     = optional(list(string), ["bind", "rshared", "rw"])
+  }))
+  default     = []
+  description = "Defines extra kubelet mounts for Talos with configurable 'source', 'destination' (defaults to 'source' if unset), 'type' (defaults to 'bind'), and 'options' (defaults to ['bind', 'rshared', 'rw'])"
+
+  validation {
+    condition = (
+      length(var.talos_kubelet_extra_mounts) ==
+      length(toset([for mount in var.talos_kubelet_extra_mounts : coalesce(mount.destination, mount.source)])) &&
+      (!var.longhorn_enabled || !contains([for mount in var.talos_kubelet_extra_mounts : coalesce(mount.destination, mount.source)], "/var/lib/longhorn"))
+    )
+    error_message = "Each destination in talos_kubelet_extra_mounts must be unique and cannot include the Longhorn default data path if Longhorn is enabled."
+  }
+}
+
+variable "talos_extra_kernel_args" {
+  type        = list(string)
+  default     = []
+  description = "Defines a list of extra kernel commandline parameters."
+}
+
+variable "talos_kernel_modules" {
+  type = list(object({
+    name       = string
+    parameters = optional(list(string))
+  }))
+  default     = null
+  description = "Defines a list of kernel modules to be loaded during system boot, along with optional parameters for each module. This allows for customized kernel behavior in the Talos environment."
+}
+
+variable "talos_machine_configuration_apply_mode" {
+  type        = string
+  default     = "auto"
+  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'reboot' applies changes and then reboots the node. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot. 'staged_if_needing_reboot' performs a dry-run and uses 'staged' mode if reboot is needed, 'auto' otherwise."
+
+  validation {
+    condition     = contains(["auto", "reboot", "no_reboot", "staged", "staged_if_needing_reboot"], var.talos_machine_configuration_apply_mode)
+    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'reboot', 'no_reboot', 'staged', or 'staged_if_needing_reboot'."
+  }
+}
+
+variable "talos_staged_configuration_automatic_reboot_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether nodes are rebooted automatically after Talos machine configuration changes are applied in 'staged' mode, or when 'staged_if_needing_reboot' resolves to 'staged' mode."
+}
+
+variable "talos_sysctls_extra_args" {
+  type        = map(string)
+  default     = {}
+  description = "Specifies a map of sysctl key-value pairs for configuring additional kernel parameters. These settings allow for detailed customization of the operating system's behavior at runtime."
+}
+
+variable "talos_state_partition_encryption_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables or disables encryption for the state (`/system/state`) partition. Attention: Changing this value for an existing cluster requires manual actions as per Talos documentation (https://www.talos.dev/latest/talos-guides/configuration/disk-encryption). Ignoring this may break your cluster."
+}
+
+variable "talos_ephemeral_partition_encryption_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables or disables encryption for the ephemeral (`/var`) partition. Attention: Changing this value for an existing cluster requires manual actions as per Talos documentation (https://www.talos.dev/latest/talos-guides/configuration/disk-encryption). Ignoring this may break your cluster."
+}
+
+variable "talos_ipv6_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether IPv6 is enabled for the Talos operating system. Enabling this setting configures the Talos OS to support IPv6 networking capabilities."
+}
+
+variable "talos_public_ipv4_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether public IPv4 addresses are enabled for nodes in the cluster. If true, each node is assigned a public IPv4 address."
+}
+
+variable "talos_public_ipv6_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether public IPv6 addresses are enabled for nodes in the cluster. If true, each node is assigned a public IPv6 address."
+}
+
+variable "talos_extra_routes" {
+  type        = list(string)
+  default     = []
+  description = "Specifies CIDR blocks to be added as extra routes for the internal network interface, using the Scaleway router (first usable IP in the network) as the gateway."
+
+  validation {
+    condition     = alltrue([for cidr in var.talos_extra_routes : can(regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$", cidr))])
+    error_message = "All entries in extra_routes must be valid CIDR notations."
+  }
+}
+
+variable "talos_coredns_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether CoreDNS is enabled in the Talos cluster. When enabled, CoreDNS serves as the primary DNS service provider in Kubernetes."
+}
+
+variable "talos_nameservers" {
+  type = list(string)
+  default = [
+    "51.159.47.28", "51.159.47.26",
+    "2001:bc8:408:400::1", "2001:bc8:408:400::2"
+  ]
+  description = "Specifies a list of IPv4 and IPv6 nameserver addresses used for DNS resolution by nodes and CoreDNS within the cluster."
+}
+
+variable "talos_static_hosts" {
+  type = list(object({
+    ip        = string
+    hostnames = list(string)
+  }))
+  default     = []
+  description = "Specifies static host mappings to be added on each node. Each entry must include an IP address and a list of hostnames associated with that IP."
+}
+
+variable "talos_ntp_servers" {
+  type = list(string)
+  default = [
+    "ntp.ubuntu.com",
+    "time.cloudflare.com",
+  ]
+  description = "Specifies a list of time server addresses used for network time synchronization across the cluster. These servers ensure that all cluster nodes maintain accurate and synchronized time."
+}
+
+variable "talos_registries" {
+  type        = any
+  default     = null
+  description = <<-EOF
+    Specifies a list of registry mirrors to be used for container image retrieval. This configuration helps in specifying alternate sources or local mirrors for image registries, enhancing reliability and speed of image downloads.
+    Example configuration:
+    ```
+    registries = {
+      mirrors = {
+        "docker.io" = {
+          endpoints = [
+            "http://localhost:5000",
+            "https://docker.io"
+          ]
+        }
+      }
+    }
+    ```
+  EOF
+}
+
+variable "talos_logging_destinations" {
+  description = "List of objects defining remote destinations for Talos service logs."
+  type = list(object({
+    endpoint  = string
+    format    = optional(string, "json_lines")
+    extraTags = optional(map(string), {})
+  }))
+  default = []
+}
+
+variable "talos_extra_inline_manifests" {
+  type = list(object({
+    name     = string
+    contents = string
+  }))
+  description = "List of additional inline Kubernetes manifests to append to the Talos machine configuration during bootstrap."
+  default     = null
+}
+
+variable "talos_extra_remote_manifests" {
+  type        = list(string)
+  description = "List of remote URLs pointing to Kubernetes manifests to be appended to the Talos machine configuration during bootstrap."
+  default     = null
+}
+
+
+# Talos Backup
+variable "talos_backup_version" {
+  type        = string
+  default     = "v0.1.0-beta.3-3-g38dad7c"
+  description = "Specifies the version of Talos Backup to be used in generated machine configurations."
+}
+
+variable "talos_backup_s3_enabled" {
+  type        = bool
+  default     = true
+  description = "Enable Talos etcd S3 backup cronjob."
+}
+
+variable "talos_backup_s3_scw_url" {
+  type        = string
+  default     = null
+  description = "Scaleway Object Storage endpoint for Talos Backup."
+}
+
+variable "talos_backup_s3_region" {
+  type        = string
+  default     = null
+  description = "S3 region for Talos Backup."
+}
+
+variable "talos_backup_s3_endpoint" {
+  type        = string
+  default     = null
+  description = "S3 endpoint for Talos Backup."
+}
+
+variable "talos_backup_s3_bucket" {
+  type        = string
+  default     = null
+  description = "S3 bucket name for Talos Backup."
+}
+
+variable "talos_backup_s3_prefix" {
+  type        = string
+  default     = null
+  description = "S3 prefix for Talos Backup."
+}
+
+variable "talos_backup_s3_path_style" {
+  type        = bool
+  default     = false
+  description = "Use path style S3 for Talos Backup. Set this to false if you have another s3 like endpoint such as minio."
+}
+
+variable "talos_backup_s3_access_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "S3 Access Key for Talos Backup."
+}
+
+variable "talos_backup_s3_secret_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "S3 Secret Access Key for Talos Backup."
+}
+
+variable "talos_backup_age_x25519_public_key" {
+  type        = string
+  default     = null
+  description = "AGE X25519 Public Key for client side Talos Backup encryption."
+}
+
+variable "talos_backup_enable_compression" {
+  type        = bool
+  default     = false
+  description = "Enable ETCD snapshot compression with zstd algorithm."
+}
+
+variable "talos_backup_schedule" {
+  type        = string
+  default     = "0 * * * *"
+  description = "The schedule for Talos Backup"
+}
+
+
+# Kubernetes
+variable "kubernetes_version" {
+  type        = string
+  default     = "v1.33.10" # https://github.com/kubernetes/kubernetes
+  description = "Specifies the Kubernetes version to deploy."
+}
+
+variable "kubernetes_kubelet_extra_args" {
+  type        = map(string)
+  default     = {}
+  description = "Specifies additional command-line arguments to pass to the kubelet service. These arguments can customize or override default kubelet configurations, allowing for tailored cluster behavior."
+}
+
+variable "kubernetes_kubelet_extra_config" {
+  type        = any
+  default     = {}
+  description = "Specifies additional configuration settings for the kubelet service. These settings can customize or override default kubelet configurations, allowing for tailored cluster behavior."
+}
+
+variable "kubernetes_apiserver_image" {
+  type        = string
+  default     = null
+  description = "Specifies a custom image repository for kube-apiserver (e.g., 'my-registry.io/kube-apiserver'). The version tag is appended automatically from kubernetes_version. When set, this image is used during both machine configuration and Kubernetes upgrades, preventing custom images from being reset to upstream defaults."
+
+  validation {
+    condition     = var.kubernetes_apiserver_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$", var.kubernetes_apiserver_image))
+    error_message = "The image must be a valid container image reference without a tag (e.g., 'my-registry.io/kube-apiserver'). The version tag is appended automatically from kubernetes_version."
+  }
+}
+
+variable "kubernetes_controller_manager_image" {
+  type        = string
+  default     = null
+  description = "Specifies a custom image repository for kube-controller-manager (e.g., 'my-registry.io/kube-controller-manager'). The version tag is appended automatically from kubernetes_version. When set, this image is used during both machine configuration and Kubernetes upgrades, preventing custom images from being reset to upstream defaults."
+
+  validation {
+    condition     = var.kubernetes_controller_manager_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$", var.kubernetes_controller_manager_image))
+    error_message = "The image must be a valid container image reference without a tag (e.g., 'my-registry.io/kube-controller-manager'). The version tag is appended automatically from kubernetes_version."
+  }
+}
+
+variable "kubernetes_scheduler_image" {
+  type        = string
+  default     = null
+  description = "Specifies a custom image repository for kube-scheduler (e.g., 'my-registry.io/kube-scheduler'). The version tag is appended automatically from kubernetes_version. When set, this image is used during both machine configuration and Kubernetes upgrades, preventing custom images from being reset to upstream defaults."
+
+  validation {
+    condition     = var.kubernetes_scheduler_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$", var.kubernetes_scheduler_image))
+    error_message = "The image must be a valid container image reference without a tag (e.g., 'my-registry.io/kube-scheduler'). The version tag is appended automatically from kubernetes_version."
+  }
+}
+
+variable "kubernetes_proxy_image" {
+  type        = string
+  default     = null
+  description = "Specifies a custom image repository for kube-proxy (e.g., 'my-registry.io/kube-proxy'). The version tag is appended automatically from kubernetes_version. When set, this image is used during both machine configuration and Kubernetes upgrades, preventing custom images from being reset to upstream defaults."
+
+  validation {
+    condition     = var.kubernetes_proxy_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$", var.kubernetes_proxy_image))
+    error_message = "The image must be a valid container image reference without a tag (e.g., 'my-registry.io/kube-proxy'). The version tag is appended automatically from kubernetes_version."
+  }
+}
+
+variable "kubernetes_kubelet_image" {
+  type        = string
+  default     = null
+  description = "Specifies a custom image repository for the kubelet (e.g., 'my-registry.io/kubelet'). The version tag is appended automatically from kubernetes_version. When set, this image is used during both machine configuration and Kubernetes upgrades, preventing custom images from being reset to upstream defaults."
+
+  validation {
+    condition     = var.kubernetes_kubelet_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$", var.kubernetes_kubelet_image))
+    error_message = "The image must be a valid container image reference without a tag (e.g., 'my-registry.io/kubelet'). The version tag is appended automatically from kubernetes_version."
+  }
+}
+
+variable "kubernetes_etcd_image" {
+  type        = string
+  default     = null
+  description = "Specifies a custom container image for etcd including the tag and/or digest (e.g., 'my-registry.io/etcd:v3.6.8', 'my-registry.io/etcd:v3.6.8@sha256:...', or 'my-registry.io/etcd@sha256:...'). This change will only take effect after a manual reboot of your cluster nodes!"
+
+  validation {
+    condition     = var.kubernetes_etcd_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+((:[a-zA-Z0-9][a-zA-Z0-9._-]*)(@[a-z0-9]+:[a-f0-9]+)?|@[a-z0-9]+:[a-f0-9]+)$", var.kubernetes_etcd_image))
+    error_message = "The image must be a valid container image reference with a tag and/or digest (e.g., 'my-registry.io/etcd:v3.6.8' or 'my-registry.io/etcd:v3.6.8@sha256:...')."
+  }
+}
+
+
+# Kubernetes API
+variable "kube_api_hostname" {
+  type        = string
+  default     = null
+  description = "Specifies the hostname for external access to the Kubernetes API server. This must be a valid domain name, set to the API's public IP address."
+}
+
+variable "kube_api_load_balancer_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether a load balancer is enabled for the Kubernetes API server. Enabling this setting provides high availability and distributed traffic management to the API server."
+}
+
+variable "kube_api_load_balancer_public_network_enabled" {
+  type        = bool
+  default     = null
+  description = "Enables the public interface for the Kubernetes API load balancer. When enabled, the API is accessible publicly without a firewall."
+}
+
+variable "kube_api_load_balancer_type" {
+  type        = string
+  default     = "LB-S"
+  description = "Specifies the type of load balancer to use for the Kubernetes API server (e.g., 'LB-S', 'LB-GP-M', 'LB-GP-L')."
+}
+
+variable "kube_api_load_balancer_health_check_interval" {
+  type        = number
+  default     = 3
+  description = "The interval (in seconds) between consecutive health checks on the Kubernetes API load balancer. Must be between 3 and 60 seconds."
+
+  validation {
+    condition = (
+      var.kube_api_load_balancer_health_check_interval >= 3 &&
+      var.kube_api_load_balancer_health_check_interval <= 60
+    )
+    error_message = "The health check interval must be between 3 and 60 seconds."
+  }
+}
+
+variable "kube_api_load_balancer_health_check_timeout" {
+  type        = number
+  default     = 2
+  description = "The timeout (in seconds) for each health check attempt on the Kubernetes API load balancer. Must be a positive value and cannot exceed the interval."
+
+  validation {
+    condition = (
+      var.kube_api_load_balancer_health_check_timeout > 0 &&
+      var.kube_api_load_balancer_health_check_timeout <= var.kube_api_load_balancer_health_check_interval
+    )
+    error_message = "The health check timeout must be a positive number and cannot exceed the interval."
+  }
+}
+
+variable "kube_api_load_balancer_health_check_retries" {
+  type        = number
+  default     = 3
+  description = "The number of retries for a failed health check on the Kubernetes API load balancer before marking the target as unhealthy. Must be between 0 and 5."
+
+  validation {
+    condition = (
+      var.kube_api_load_balancer_health_check_retries >= 0 &&
+      var.kube_api_load_balancer_health_check_retries <= 5
+    )
+    error_message = "The health check retries must be between 0 and 5."
+  }
+}
+
+variable "kube_api_extra_args" {
+  type        = map(string)
+  default     = {}
+  description = "Specifies additional command-line arguments to be passed to the kube-apiserver. This allows for customization of the API server's behavior according to specific cluster requirements."
+}
+
+
+# Talos CCM
+variable "talos_ccm_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Talos Cloud Controller Manager (CCM) deployment."
+}
+
+variable "talos_ccm_version" {
+  type        = string
+  default     = "v1.12.0" # https://github.com/siderolabs/talos-cloud-controller-manager
+  description = "Specifies the version of the Talos Cloud Controller Manager (CCM) to use. This version controls cloud-specific integration features in the Talos operating system."
+}
+
+# Kubernetes OIDC Configuration
+variable "oidc_enabled" {
+  description = "Enable OIDC authentication for Kubernetes API server"
+  type        = bool
+  default     = false
+}
+
+variable "oidc_issuer_url" {
+  description = "URL of the OIDC provider (e.g., https://your-oidc-provider.com). Required when oidc_enabled is true"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.oidc_enabled == false || (var.oidc_enabled == true && var.oidc_issuer_url != "")
+    error_message = "oidc_issuer_url is required when oidc_enabled is true."
+  }
+}
+
+variable "oidc_client_id" {
+  description = "OIDC client ID that all tokens must be issued for. Required when oidc_enabled is true"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.oidc_enabled == false || (var.oidc_enabled == true && var.oidc_client_id != "")
+    error_message = "oidc_client_id is required when oidc_enabled is true."
+  }
+}
+
+variable "oidc_username_claim" {
+  description = "JWT claim to use as the username"
+  type        = string
+  default     = "sub"
+}
+
+variable "oidc_groups_claim" {
+  description = "JWT claim to use as the user's groups"
+  type        = string
+  default     = "groups"
+}
+
+variable "oidc_groups_prefix" {
+  description = "Prefix prepended to group claims to prevent clashes with existing names"
+  type        = string
+  default     = "oidc:"
+}
+
+variable "oidc_group_mappings" {
+  description = "List of OIDC groups mapped to Kubernetes roles and cluster roles"
+  type = list(object({
+    group         = string
+    cluster_roles = optional(list(string), [])
+    roles = optional(list(object({
+      name      = string
+      namespace = string
+    })), [])
+  }))
+  default = []
+
+  validation {
+    condition = length(var.oidc_group_mappings) == length(distinct([
+      for mapping in var.oidc_group_mappings : mapping.group
+    ]))
+    error_message = "OIDC group names must be unique. Duplicate group names found."
+  }
+}
+
+# Kubernetes RBAC
+variable "rbac_roles" {
+  description = "List of custom Kubernetes roles to create"
+  type = list(object({
+    name      = string
+    namespace = string
+    rules = list(object({
+      api_groups = list(string)
+      resources  = list(string)
+      verbs      = list(string)
+    }))
+  }))
+  default = []
+
+  validation {
+    condition = length(var.rbac_roles) == length(distinct([
+      for role in var.rbac_roles : role.name
+    ]))
+    error_message = "RBAC role names must be unique. Duplicate role names found."
+  }
+}
+
+variable "rbac_cluster_roles" {
+  description = "List of custom Kubernetes cluster roles to create"
+  type = list(object({
+    name = string
+    rules = list(object({
+      api_groups = list(string)
+      resources  = list(string)
+      verbs      = list(string)
+    }))
+  }))
+  default = []
+
+  validation {
+    condition = length(var.rbac_cluster_roles) == length(distinct([
+      for role in var.rbac_cluster_roles : role.name
+    ]))
+    error_message = "RBAC cluster role names must be unique. Duplicate cluster role names found."
+  }
+}
+
+# Scaleway VPC
+variable "scaleway_vpc" {
+  type = object({
+    id = string
+  })
+  default     = null
+  description = "The Scaleway VPC resource of an existing VPC."
+}
+
+variable "scaleway_vpc_id" {
+  type        = string
+  default     = null
+  description = "The Scaleway VPC ID of an existing VPC."
+
+  validation {
+    condition     = !(var.scaleway_vpc_id != null && var.scaleway_vpc != null)
+    error_message = "Only one of scaleway_vpc_id or scaleway_vpc may be provided, not both."
+  }
+}
+
+
+# Scaleway Cloud Controller Manager (CCM)
+variable "scaleway_ccm_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Scaleway Cloud Controller Manager (CCM)."
+}
+
+variable "scaleway_ccm_version" {
+  type        = string
+  default     = "v0.35.2"
+  description = "Specifies the version of the Scaleway Cloud Controller Manager (CCM) to use."
+}
+
+variable "scaleway_ccm_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Scaleway CCM chart deployment. These values will merge with and will override the default values."
+}
+
+
+# Scaleway Container Storage Interface (CSI)
+variable "scaleway_csi_helm_repository" {
+  type        = string
+  default     = "https://helm.scw.cloud/"
+  description = "URL of the Helm repository where the Scaleway CSI chart is located."
+}
+
+variable "scaleway_csi_helm_chart" {
+  type        = string
+  default     = "scaleway-csi"
+  description = "Name of the Helm chart used for deploying Scaleway CSI."
+}
+
+variable "scaleway_csi_helm_version" {
+  type        = string
+  default     = "0.2.1"
+  description = "Version of the Scaleway CSI Helm chart to deploy."
+}
+
+variable "scaleway_csi_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Scaleway CSI chart deployment. These values will merge with and will override the default values provided by the Scaleway CSI Helm chart."
+}
+
+variable "scaleway_csi_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Scaleway Container Storage Interface (CSI)."
+}
+
+variable "scaleway_csi_encryption_passphrase" {
+  type        = string
+  default     = null
+  description = "Passphrase for encrypting volumes created by the Scaleway CSI driver. If not provided, a random passphrase will be generated. The passphrase must be 8-512 characters long and contain only printable 7-bit ASCII characters."
+  sensitive   = true
+
+  validation {
+    condition     = var.scaleway_csi_encryption_passphrase == null || can(regex("^[ -~]{8,512}$", var.scaleway_csi_encryption_passphrase))
+    error_message = "The passphrase must be 8-512 characters long and contain only printable 7-bit ASCII characters (character codes 32-126)."
+  }
+}
+
+variable "scaleway_csi_storage_classes" {
+  description = "User defined Scaleway CSI storage classes"
+  type = list(object({
+    name                = string
+    encrypted           = bool
+    reclaimPolicy       = optional(string, "Delete")
+    defaultStorageClass = optional(bool, false)
+    extraParameters     = optional(map(string), {})
+  }))
+  default = [
+    { name = "scw-bssd-encrypted", encrypted = true, defaultStorageClass = true },
+    { name = "scw-bssd", encrypted = false, defaultStorageClass = false }
+  ]
+}
+
+variable "scaleway_csi_volume_extra_labels" {
+  type        = map(string)
+  default     = {}
+  description = "Specifies default labels to apply to all newly created volumes. The value must be a map in the format key: value."
+}
+
+
+# Longhorn
+variable "longhorn_helm_repository" {
+  type        = string
+  default     = "https://charts.longhorn.io"
+  description = "URL of the Helm repository where the Longhorn chart is located."
+}
+
+variable "longhorn_helm_chart" {
+  type        = string
+  default     = "longhorn"
+  description = "Name of the Helm chart used for deploying Longhorn."
+}
+
+variable "longhorn_helm_version" {
+  type        = string
+  default     = "1.11.1"
+  description = "Version of the Longhorn Helm chart to deploy."
+}
+
+variable "longhorn_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Longhorn chart deployment. These values will merge with and will override the default values provided by the Longhorn Helm chart."
+}
+
+variable "longhorn_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable or disable Longhorn integration"
+}
+
+variable "longhorn_default_storage_class" {
+  type        = bool
+  default     = false
+  description = "Set Longhorn as the default storage class."
+}
+
+
+# Cilium
+variable "cilium_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Cilium CNI deployment."
+}
+
+variable "cilium_helm_repository" {
+  type        = string
+  default     = "https://helm.cilium.io"
+  description = "URL of the Helm repository where the Cilium chart is located."
+}
+
+variable "cilium_helm_chart" {
+  type        = string
+  default     = "cilium"
+  description = "Name of the Helm chart used for deploying Cilium."
+}
+
+variable "cilium_helm_version" {
+  type        = string
+  default     = "1.18.7"
+  description = "Version of the Cilium Helm chart to deploy."
+}
+
+variable "cilium_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Cilium chart deployment. These values will merge with and will override the default values provided by the Cilium Helm chart."
+}
+
+variable "cilium_policy_cidr_match_mode" {
+  type        = string
+  default     = ""
+  description = "Allows setting policy-cidr-match-mode to \"nodes\", which means that cluster nodes can be selected by CIDR network policies. Normally nodes are only accessible via remote-node entity selectors. This is required if you want to target the kube-api server with a k8s NetworkPolicy."
+
+  validation {
+    condition     = var.cilium_policy_cidr_match_mode == "" || var.cilium_policy_cidr_match_mode == "nodes"
+    error_message = "cilium_policy_cidr_match_mode must be either \"nodes\" or an empty string."
+  }
+}
+
+variable "cilium_encryption_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables transparent network encryption using Cilium within the Kubernetes cluster. When enabled, this feature provides added security for network traffic."
+}
+
+variable "cilium_encryption_type" {
+  type        = string
+  default     = "wireguard"
+  description = "Type of encryption to use for Cilium network encryption. Options: 'wireguard' or 'ipsec'."
+
+  validation {
+    condition     = contains(["wireguard", "ipsec"], var.cilium_encryption_type)
+    error_message = "Encryption type must be either 'wireguard' or 'ipsec'."
+  }
+}
+
+variable "cilium_ipsec_algorithm" {
+  type        = string
+  default     = "rfc4106(gcm(aes))"
+  description = "Cilium IPSec key algorithm."
+}
+
+variable "cilium_ipsec_key_size" {
+  type        = number
+  default     = 256
+  description = "AES key size in bits for IPSec encryption (128, 192, or 256). Only used when cilium_encryption_type is 'ipsec'."
+
+  validation {
+    condition     = contains([128, 192, 256], var.cilium_ipsec_key_size)
+    error_message = "IPSec key size must be 128, 192 or 256 bits."
+  }
+}
+
+variable "cilium_ipsec_key_id" {
+  type        = number
+  default     = 1
+  description = "IPSec key ID (1-15, increment manually for rotation). Only used when cilium_encryption_type is 'ipsec'."
+
+  validation {
+    condition     = var.cilium_ipsec_key_id >= 1 && var.cilium_ipsec_key_id <= 15 && floor(var.cilium_ipsec_key_id) == var.cilium_ipsec_key_id
+    error_message = "The IPSec key_id must be between 1 and 15."
+  }
+}
+
+variable "cilium_kube_proxy_replacement_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables Cilium's eBPF kube-proxy replacement."
+}
+
+variable "cilium_socket_lb_host_namespace_only_enabled" {
+  type        = bool
+  default     = false
+  description = "Limit Cilium's socket-level load-balancing to the host namespace only."
+}
+
+variable "cilium_load_balancer_acceleration" {
+  type        = string
+  default     = "native"
+  description = "Cilium XDP Acceleration mode."
+
+  validation {
+    condition     = contains(["disabled", "native", "best-effort"], var.cilium_load_balancer_acceleration)
+    error_message = "cilium_load_balancer_acceleration must be one of: disabled, native or best-effort"
+  }
+}
+
+variable "cilium_routing_mode" {
+  type        = string
+  description = "Cilium routing mode (e.g., 'native', 'tunnel', etc.)"
+  default     = "native"
+
+  validation {
+    condition     = contains(["", "native", "tunnel"], var.cilium_routing_mode)
+    error_message = "cilium_routing_mode must be one of: empty string, native, or tunnel."
+  }
+}
+
+variable "cilium_bpf_datapath_mode" {
+  type        = string
+  default     = "veth"
+  description = "Mode for Pod devices for the core datapath. Allowed values: veth, netkit, netkit-l2. Warning: Netkit is still in beta and should not be used together with IPsec encryption!"
+
+  validation {
+    condition     = contains(["veth", "netkit", "netkit-l2"], var.cilium_bpf_datapath_mode)
+    error_message = "cilium_bpf_datapath_mode must be one of: veth, netkit, netkit-l2."
+  }
+}
+
+variable "cilium_gateway_api_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables Cilium Gateway API."
+}
+
+variable "cilium_gateway_api_proxy_protocol_enabled" {
+  type        = bool
+  default     = true
+  description = "Enable PROXY Protocol on Cilium Gateway API for external load balancer traffic."
+}
+
+variable "cilium_gateway_api_external_traffic_policy" {
+  type        = string
+  default     = "Cluster"
+  description = "Denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints."
+
+  validation {
+    condition     = contains(["Cluster", "Local"], var.cilium_gateway_api_external_traffic_policy)
+    error_message = "Invalid value for external traffic policy. Allowed values are 'Cluster' or 'Local'."
+  }
+}
+
+variable "cilium_egress_gateway_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables egress gateway to redirect and SNAT the traffic that leaves the cluster."
+
+  validation {
+    condition     = !var.cilium_egress_gateway_enabled || var.cilium_kube_proxy_replacement_enabled
+    error_message = "cilium_egress_gateway_enabled can only be true when cilium_kube_proxy_replacement_enabled is true, because Cilium Egress Gateway requires kubeProxyReplacement=true and BPF masquerading."
+  }
+}
+
+variable "cilium_service_monitor_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables service monitors for Prometheus if set to true."
+}
+
+variable "cilium_hubble_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables Hubble observability within Cilium, which may impact performance with an overhead of 1-15% depending on network traffic patterns and settings."
+}
+
+variable "cilium_hubble_relay_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables Hubble Relay, which requires Hubble to be enabled."
+
+  validation {
+    condition     = var.cilium_hubble_relay_enabled ? var.cilium_hubble_enabled : true
+    error_message = "Hubble Relay cannot be enabled unless Hubble is also enabled."
+  }
+}
+
+variable "cilium_hubble_ui_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the Hubble UI, which requires Hubble Relay to be enabled."
+
+  validation {
+    condition     = var.cilium_hubble_ui_enabled ? var.cilium_hubble_relay_enabled : true
+    error_message = "Hubble UI cannot be enabled unless Hubble Relay is also enabled."
+  }
+}
+
+
+# Metrics Server
+variable "metrics_server_helm_repository" {
+  type        = string
+  default     = "https://kubernetes-sigs.github.io/metrics-server"
+  description = "URL of the Helm repository where the Metrics Server chart is located."
+}
+
+variable "metrics_server_helm_chart" {
+  type        = string
+  default     = "metrics-server"
+  description = "Name of the Helm chart used for deploying Metrics Server."
+}
+
+variable "metrics_server_helm_version" {
+  type        = string
+  default     = "3.13.0"
+  description = "Version of the Metrics Server Helm chart to deploy."
+}
+
+variable "metrics_server_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Metrics Server chart deployment. These values will merge with and will override the default values provided by the Metrics Server Helm chart."
+}
+
+variable "metrics_server_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Kubernetes Metrics Server."
+}
+
+variable "metrics_server_schedule_on_control_plane" {
+  type        = bool
+  default     = null
+  description = "Determines whether to schedule the Metrics Server on control plane nodes. Defaults to 'true' if there are no configured worker nodes."
+}
+
+variable "metrics_server_replicas" {
+  type        = number
+  default     = null
+  description = "Specifies the number of replicas for the Metrics Server. Depending on the node pool size, a default of 1 or 2 is used if not explicitly set."
+}
+
+
+# Cert Manager
+variable "cert_manager_helm_repository" {
+  type        = string
+  default     = "https://charts.jetstack.io"
+  description = "URL of the Helm repository where the Cert Manager chart is located."
+}
+
+variable "cert_manager_helm_chart" {
+  type        = string
+  default     = "cert-manager"
+  description = "Name of the Helm chart used for deploying Cert Manager."
+}
+
+variable "cert_manager_helm_version" {
+  type        = string
+  default     = "v1.20.1"
+  description = "Version of the Cert Manager Helm chart to deploy."
+}
+
+variable "cert_manager_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Cert Manager chart deployment. These values will merge with and will override the default values provided by the Cert Manager Helm chart."
+}
+
+variable "cert_manager_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the deployment of cert-manager for managing TLS certificates."
+}
+
+
+# Ingress NGINX
+variable "ingress_nginx_helm_repository" {
+  type        = string
+  default     = "https://kubernetes.github.io/ingress-nginx"
+  description = "URL of the Helm repository where the Ingress NGINX Controller chart is located."
+}
+
+variable "ingress_nginx_helm_chart" {
+  type        = string
+  default     = "ingress-nginx"
+  description = "Name of the Helm chart used for deploying Ingress NGINX Controller."
+}
+
+variable "ingress_nginx_helm_version" {
+  type        = string
+  default     = "4.15.1"
+  description = "Version of the Ingress NGINX Controller Helm chart to deploy."
+}
+
+variable "ingress_nginx_helm_values" {
+  type        = any
+  default     = {}
+  description = "Custom Helm values for the Ingress NGINX Controller chart deployment. These values will merge with and will override the default values provided by the Ingress NGINX Controller Helm chart."
+}
+
+variable "ingress_nginx_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the deployment of the Ingress NGINX Controller. Requires cert_manager_enabled to be true."
+
+  validation {
+    condition     = var.ingress_nginx_enabled ? var.cert_manager_enabled : true
+    error_message = "Ingress NGINX can only be enabled if cert-manager is also enabled."
+  }
+}
+
+variable "ingress_nginx_deprecation_ignored" {
+  type        = bool
+  default     = false
+  description = "Acknowledges that ingress-nginx is deprecated. Must be set to true when ingress_nginx_enabled is true."
+
+  validation {
+    condition     = var.ingress_nginx_enabled ? var.ingress_nginx_deprecation_ignored : true
+    error_message = "Ingress NGINX is deprecated. Set ingress_nginx_deprecation_ignored = true to enable ingress_nginx_enabled."
+  }
+}
+
+variable "ingress_nginx_kind" {
+  type        = string
+  default     = "Deployment"
+  description = "Specifies the type of Kubernetes controller to use for ingress-nginx. Valid options are 'Deployment' or 'DaemonSet'."
+
+  validation {
+    condition     = contains(["Deployment", "DaemonSet"], var.ingress_nginx_kind)
+    error_message = "The ingress_nginx_kind must be either 'Deployment' or 'DaemonSet'."
+  }
+}
+
+variable "ingress_nginx_replicas" {
+  type        = number
+  default     = null
+  description = "Specifies the number of replicas for the NGINX Ingress controller. If not set, the default is 2 replicas for clusters with fewer than 3 Worker nodes, and 3 replicas for clusters with 4 or more Worker nodes."
+
+  validation {
+    condition     = var.ingress_nginx_kind != "DaemonSet" || var.ingress_nginx_replicas == null
+    error_message = "ingress_nginx_replicas must be null when ingress_nginx_kind is set to 'DaemonSet'."
+  }
+}
+
+variable "ingress_nginx_topology_aware_routing" {
+  type        = bool
+  default     = false
+  description = "Enables Topology Aware Routing for ingress-nginx with the service annotation `service.kubernetes.io/topology-mode`, routing traffic closer to its origin."
+}
+
+variable "ingress_nginx_service_external_traffic_policy" {
+  type        = string
+  default     = "Cluster"
+  description = "Denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints."
+
+  validation {
+    condition     = contains(["Cluster", "Local"], var.ingress_nginx_service_external_traffic_policy)
+    error_message = "Invalid value for external traffic policy. Allowed values are 'Cluster' or 'Local'."
+  }
+}
+
+variable "ingress_nginx_config" {
+  type        = any
+  default     = {}
+  description = "Global configuration passed to the ConfigMap consumed by the nginx controller. (Reference: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/)"
+}
+
+
+# Ingress Load Balancer
+variable "ingress_load_balancer_type" {
+  type        = string
+  default     = "LB-S"
+  description = "Specifies the type of load balancer to be used for the ingress (e.g., 'LB-S', 'LB-M', 'LB-L')."
+}
+
+variable "ingress_load_balancer_algorithm" {
+  type        = string
+  default     = "least_connections"
+  description = "Specifies the algorithm used by the ingress load balancer. 'round_robin' distributes requests evenly across all servers, while 'least_connections' directs requests to the server with the fewest active connections."
+
+  validation {
+    condition     = contains(["round_robin", "least_connections"], var.ingress_load_balancer_algorithm)
+    error_message = "Invalid load balancer algorithm. Allowed values are 'round_robin' or 'least_connections'."
+  }
+}
+
+variable "ingress_load_balancer_public_network_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables or disables the public interface of the Load Balancer."
+}
+
+variable "ingress_load_balancer_health_check_interval" {
+  type        = number
+  default     = 3
+  description = "The interval (in seconds) between consecutive health checks. Must be between 3 and 60 seconds."
+
+  validation {
+    condition = (
+      var.ingress_load_balancer_health_check_interval >= 3 &&
+      var.ingress_load_balancer_health_check_interval <= 60
+    )
+    error_message = "The health check interval must be between 3 and 60 seconds."
+  }
+}
+
+variable "ingress_load_balancer_health_check_retries" {
+  type        = number
+  default     = 3
+  description = "The number of retries for a failed health check before marking the target as unhealthy. Must be between 0 and 5."
+
+  validation {
+    condition = (
+      var.ingress_load_balancer_health_check_retries >= 0 &&
+      var.ingress_load_balancer_health_check_retries <= 5
+    )
+    error_message = "The health check retries must be between 0 and 5."
+  }
+}
+
+variable "ingress_load_balancer_health_check_timeout" {
+  type        = number
+  default     = 3
+  description = "The timeout (in seconds) for each health check attempt. It cannot exceed the interval and must be a positive value."
+
+  validation {
+    condition = (
+      var.ingress_load_balancer_health_check_timeout > 0 &&
+      var.ingress_load_balancer_health_check_timeout <= var.ingress_load_balancer_health_check_interval
+    )
+    error_message = "The health check timeout must be a positive number and cannot exceed the interval."
+  }
+}
+
+variable "ingress_load_balancer_rdns" {
+  type        = string
+  default     = null
+  description = "Specifies the general reverse DNS FQDN for the ingress load balancer, used for internal networking and service discovery. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+
+  validation {
+    condition     = var.ingress_load_balancer_rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.ingress_load_balancer_rdns))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "ingress_load_balancer_rdns_ipv4" {
+  type        = string
+  default     = null
+  description = "Defines the IPv4-specific reverse DNS FQDN for the ingress load balancer, crucial for network operations and service discovery. Supports dynamic placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+
+  validation {
+    condition     = var.ingress_load_balancer_rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.ingress_load_balancer_rdns_ipv4))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "ingress_load_balancer_proxy_protocol" {
+  type        = bool
+  default     = true
+  description = "Enables PROXY protocol on the ingress load balancer backends. When enabled, the real client IP is forwarded to ingress-nginx via the PROXY protocol header."
+}
+
+variable "ingress_load_balancer_pools" {
+  type = list(object({
+    name                    = string
+    zone                    = string
+    type                    = optional(string)
+    labels                  = optional(map(string), {})
+    count                   = optional(number, 1)
+    target_label_selector   = optional(list(string), [])
+    local_traffic           = optional(bool, false)
+    load_balancer_algorithm = optional(string)
+    public_network_enabled  = optional(bool)
+    rdns                    = optional(string)
+    rdns_ipv4               = optional(string)
+    rdns_ipv6               = optional(string)
+  }))
+  default     = []
+  description = "Defines configuration settings for Ingress Load Balancer pools within the cluster."
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : contains([
+        "fr-par-1", "fr-par-2", "fr-par-3", "nl-ams-1", "nl-ams-2", "nl-ams-3", "pl-waw-1", "pl-waw-2", "pl-waw-3"
+      ], pool.zone)
+    ])
+    error_message = "Each Load Balancer zone must be a valid Scaleway availability zone (e.g., 'fr-par-1', 'nl-ams-1', 'pl-waw-1')."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools :
+      pool.load_balancer_algorithm == null || contains(
+        ["round_robin", "least_connections"],
+        coalesce(pool.load_balancer_algorithm, var.ingress_load_balancer_algorithm)
+      )
+    ])
+    error_message = "Invalid Load Balancer algorithm specified. Allowed values are 'round_robin' or 'least_connections'. If not specified, the default ingress_load_balancer_algorithm will be used."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : length(var.cluster_name) + length(pool.name) <= 56
+    ])
+    error_message = "The combined length of the cluster name and any Load Balancer pool name must not exceed 56 characters."
+  }
+
+  validation {
+    condition     = length(var.ingress_load_balancer_pools) == length(distinct([for pool in var.ingress_load_balancer_pools : pool.name]))
+    error_message = "Duplicate Load Balancer pool names are not allowed. Each pool name must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : pool.rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", pool.rdns))
+    ])
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : pool.rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", pool.rdns_ipv4))
+    ])
+    error_message = "The rdns_ipv4 must be a valid IPv4 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : pool.rdns_ipv6 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", pool.rdns_ipv6))
+    ])
+    error_message = "The rdns_ipv6 must be a valid IPv6 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+}
+
+
+# Gateway API CRDs
+variable "gateway_api_crds_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Gateway API Custom Resource Definitions (CRDs) deployment."
+}
+
+variable "gateway_api_crds_version" {
+  type        = string
+  default     = "v1.4.1" # https://github.com/kubernetes-sigs/gateway-api
+  description = "Specifies the version of the Gateway API Custom Resource Definitions (CRDs) to deploy."
+}
+
+variable "gateway_api_crds_release_channel" {
+  type        = string
+  default     = "standard"
+  description = "Specifies the release channel for the Gateway API CRDs. Valid options are 'standard' or 'experimental'."
+
+  validation {
+    condition     = contains(["standard", "experimental"], var.gateway_api_crds_release_channel)
+    error_message = "Invalid value for 'gateway_api_crds_release_channel'. Valid options are 'standard' or 'experimental'."
+  }
+}
+
+
+# Prometheus Operator CRDs
+variable "prometheus_operator_crds_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Prometheus Operator Custom Resource Definitions (CRDs) deployment."
+}
+
+variable "prometheus_operator_crds_version" {
+  type        = string
+  default     = "v0.90.1" # https://github.com/prometheus-operator/prometheus-operator
+  description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
+}

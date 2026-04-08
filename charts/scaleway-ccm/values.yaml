@@ -1,0 +1,29 @@
+replicaCount: 1
+
+image:
+  repository: scaleway/scaleway-cloud-controller-manager
+  tag: "v0.35.2"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 50Mi
+
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+tolerations:
+  - key: node-role.kubernetes.io/master
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    value: "true"
+    effect: NoSchedule
+  - key: CriticalAddonsOnly
+    operator: Exists
+
+secretName: scaleway-secret
+
+env: {}
