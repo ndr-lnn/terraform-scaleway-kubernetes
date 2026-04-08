@@ -1,21 +1,24 @@
 # Scaleway Secret
 locals {
-  scaleway_secret_manifest = yamlencode({
-    apiVersion = "v1"
-    kind       = "Secret"
-    metadata = {
-      name      = "scaleway-secret"
-      namespace = "kube-system"
-    }
-    type = "Opaque"
-    stringData = {
-      SCW_ACCESS_KEY         = var.scaleway_access_key
-      SCW_SECRET_KEY         = var.scaleway_secret_key
-      SCW_DEFAULT_PROJECT_ID = var.scaleway_project_id
-      SCW_DEFAULT_REGION     = var.scaleway_region
-      SCW_DEFAULT_ZONE       = var.scaleway_zone
-    }
-  })
+  scaleway_secret_manifest = {
+    name = "scaleway-secret"
+    contents = yamlencode({
+      apiVersion = "v1"
+      kind       = "Secret"
+      metadata = {
+        name      = "scaleway-secret"
+        namespace = "kube-system"
+      }
+      type = "Opaque"
+      stringData = {
+        SCW_ACCESS_KEY         = var.scaleway_access_key
+        SCW_SECRET_KEY         = var.scaleway_secret_key
+        SCW_DEFAULT_PROJECT_ID = var.scaleway_project_id
+        SCW_DEFAULT_REGION     = var.scaleway_region
+        SCW_DEFAULT_ZONE       = var.scaleway_zone
+      }
+    })
+  }
 }
 
 # Scaleway CCM
