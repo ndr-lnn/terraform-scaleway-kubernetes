@@ -1349,8 +1349,8 @@ variable "cilium_load_balancer_acceleration" {
 
 variable "cilium_routing_mode" {
   type        = string
-  description = "Cilium routing mode (e.g., 'native', 'tunnel', etc.)"
-  default     = "native"
+  description = "Cilium routing mode. Must be 'tunnel' on Scaleway because the CCM has no routes interface (unlike Hetzner's HCLOUD_NETWORK_ROUTES_ENABLED). Native routing requires the underlay to forward pod CIDRs, which Scaleway private networks don't do."
+  default     = "tunnel"
 
   validation {
     condition     = contains(["", "native", "tunnel"], var.cilium_routing_mode)
