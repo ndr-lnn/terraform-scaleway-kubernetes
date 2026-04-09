@@ -47,7 +47,7 @@ locals {
             nodeLabels = merge(
               local.talos_allow_scheduling_on_control_planes ? { "node.kubernetes.io/exclude-from-external-load-balancers" = { "$patch" = "delete" } } : {},
               local.control_plane_nodepools_map[local.control_plane_servers_map[node.name].name].labels,
-              { "nodeid" = tostring(node.id) }
+              { "nodeid" = element(split("/", node.id), length(split("/", node.id)) - 1) }
             )
             nodeAnnotations = local.control_plane_nodepools_map[local.control_plane_servers_map[node.name].name].annotations
             nodeTaints = {

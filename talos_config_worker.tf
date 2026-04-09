@@ -7,7 +7,7 @@ locals {
         machine = {
           nodeLabels = merge(
             local.worker_nodepools_map[local.worker_servers_map[node.name].name].labels,
-            { "nodeid" = tostring(node.id) }
+            { "nodeid" = element(split("/", node.id), length(split("/", node.id)) - 1) }
           )
           nodeAnnotations = local.worker_nodepools_map[local.worker_servers_map[node.name].name].annotations
           kubelet = {

@@ -58,11 +58,24 @@ resource "scaleway_instance_server" "control_plane" {
   security_group_id  = local.security_group_id
   placement_group_id = scaleway_instance_placement_group.control_plane.id
 
+  additional_volume_ids = [scaleway_instance_volume.control_plane[each.key].id]
+
   tags = [var.cluster_name, "role=control-plane", "nodepool=${each.value.name}"]
 
   lifecycle {
     ignore_changes = [image, user_data, security_group_id]
   }
+}
+
+resource "scaleway_instance_volume" "control_plane" {
+  for_each = local.control_plane_servers_map
+
+  name       = "${each.key}-data"
+  type       = "l_ssd"
+  size_in_gb = 25
+  zone       = each.value.zone
+
+  tags = [var.cluster_name, "role=control-plane"]
 }
 
 resource "scaleway_instance_private_nic" "control_plane" {
@@ -102,11 +115,24 @@ resource "scaleway_instance_server" "worker" {
     null
   )
 
+  additional_volume_ids = [scaleway_instance_volume.worker[each.key].id]
+
   tags = [var.cluster_name, "role=worker", "nodepool=${each.value.name}"]
 
   lifecycle {
     ignore_changes = [image, user_data, security_group_id]
   }
+}
+
+resource "scaleway_instance_volume" "worker" {
+  for_each = local.worker_servers_map
+
+  name       = "${each.key}-data"
+  type       = "l_ssd"
+  size_in_gb = 25
+  zone       = each.value.zone
+
+  tags = [var.cluster_name, "role=worker"]
 }
 
 resource "scaleway_instance_private_nic" "worker" {

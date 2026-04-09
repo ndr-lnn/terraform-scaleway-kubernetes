@@ -23,10 +23,11 @@ locals {
 
   # Interface Configuration
   # Talos Scaleway platform auto-configures eth0 (public interface) only.
-  # The private NIC (ens2) requires explicit config patches.
+  # The private NIC (eth1) requires explicit config patches for DHCP.
+  # Verified empirically: Scaleway private NICs appear as eth1 (not ens2).
   talos_public_interface_enabled = var.talos_public_ipv4_enabled || var.talos_public_ipv6_enabled
   talos_public_link_name         = "eth0"
-  talos_private_link_name        = "ens2"
+  talos_private_link_name        = "eth1"
 
   # Routes
   talos_extra_routes = [for cidr in var.talos_extra_routes : {
@@ -138,7 +139,24 @@ locals {
         name       = "EPHEMERAL"
         encryption = local.talos_system_volume_encryption
       }
-    ] : []
+    ] : [],
+    # Scaleway: EPHEMERAL partition must be on /dev/vdb (additional volume)
+    # because the boot image on /dev/vda is only 4.5GB and cannot be resized
+    [
+      {
+        apiVersion = "v1alpha1"
+        kind       = "VolumeConfig"
+        name       = "EPHEMERAL"
+        provisioning = {
+          diskSelector = {
+            match = "disk.dev_path == '/dev/vdb'"
+          }
+          minSize = "2GB"
+          maxSize = "40GB"
+          grow    = false
+        }
+      }
+    ]
   )
 
   # Nameservers
@@ -194,6 +212,8 @@ locals {
     [{
       machine = {
         install = {
+          disk            = "/dev/vdb"
+          wipe            = true
           image           = local.talos_installer_image_url
           extraKernelArgs = var.talos_extra_kernel_args
         }

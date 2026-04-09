@@ -349,7 +349,7 @@ resource "terraform_data" "talos_staged_configuration_reboot_worker" {
 resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
   endpoint             = local.talos_primary_endpoint
-  node                 = local.talos_primary_node_private_ipv4
+  node                 = local.talos_primary_endpoint
 
   depends_on = [
     talos_machine_configuration_apply.control_plane,
