@@ -72,7 +72,7 @@ resource "scaleway_instance_volume" "control_plane" {
 
   name       = "${each.key}-data"
   type       = "l_ssd"
-  size_in_gb = 25
+  size_in_gb = var.talos_ephemeral_volume_size_gb
   zone       = each.value.zone
 
   tags = [var.cluster_name, "role=control-plane"]
@@ -129,7 +129,7 @@ resource "scaleway_instance_volume" "worker" {
 
   name       = "${each.key}-data"
   type       = "l_ssd"
-  size_in_gb = 25
+  size_in_gb = var.talos_ephemeral_volume_size_gb
   zone       = each.value.zone
 
   tags = [var.cluster_name, "role=worker"]

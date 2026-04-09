@@ -467,6 +467,17 @@ variable "worker_config_patches" {
 }
 
 
+variable "talos_ephemeral_volume_size_gb" {
+  type        = number
+  default     = 15
+  description = "Size in GB of the additional l_ssd volume for the Talos EPHEMERAL partition (/dev/vdb). The boot image uses ~4.5GB on /dev/vda. Total l_ssd must not exceed the instance type limit (e.g., DEV1-S = 20GB, DEV1-M = 40GB)."
+
+  validation {
+    condition     = var.talos_ephemeral_volume_size_gb >= 5
+    error_message = "Ephemeral volume must be at least 5GB."
+  }
+}
+
 # Talos
 variable "talos_version" {
   type        = string
