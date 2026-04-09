@@ -96,3 +96,8 @@ output "kube_api_load_balancer" {
     private_ipv4 = local.kube_api_load_balancer_private_ipv4
   } : null
 }
+
+output "cluster_private_network_id" {
+  description = "ID of the cluster private network (for attaching external resources like LBs)"
+  value       = scaleway_vpc_private_network.cluster.id
+}

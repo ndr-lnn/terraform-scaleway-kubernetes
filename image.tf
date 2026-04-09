@@ -139,8 +139,12 @@ resource "terraform_data" "talos_image_download_arm64" {
 
 # ─── S3 Bucket for Image Storage ────────────────────────────────────────────
 
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
 resource "scaleway_object_bucket" "talos_images" {
-  name   = "${var.cluster_name}-talos-images"
+  name   = "${var.cluster_name}-talos-${random_id.bucket_suffix.hex}"
   region = var.scaleway_region
 
   lifecycle {
