@@ -119,7 +119,7 @@ data "helm_template" "ingress_nginx" {
     yamlencode(var.ingress_nginx_helm_values)
   ]
 
-  depends_on = [scaleway_lb.ingress]
+  depends_on = [scaleway_lb_private_network.ingress]
 }
 
 locals {

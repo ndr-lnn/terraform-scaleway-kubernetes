@@ -1,8 +1,7 @@
 # Kubernetes API Load Balancer
 locals {
-  # On Scaleway, the LB private IP is IPAM-assigned (not predictable).
-  # Use the primary control plane node's private IP as the internal API endpoint instead.
-  kube_api_load_balancer_private_ipv4 = var.kube_api_load_balancer_enabled ? local.control_plane_private_ipv4_list[0] : null
+  # LB private IP is known via the pre-reserved IPAM IP resource.
+  kube_api_load_balancer_private_ipv4 = var.kube_api_load_balancer_enabled ? scaleway_ipam_ip.kube_api_lb[0].address : null
   kube_api_load_balancer_public_ipv4  = var.kube_api_load_balancer_enabled ? scaleway_lb_ip.kube_api[0].ip_address : null
   kube_api_load_balancer_public_ipv6  = null # Scaleway LB IPs are IPv4-only
   kube_api_load_balancer_name         = "${var.cluster_name}-kube-api"
@@ -18,6 +17,16 @@ resource "scaleway_lb_ip" "kube_api" {
   zone  = var.scaleway_zone
 }
 
+resource "scaleway_ipam_ip" "kube_api_lb" {
+  count = var.kube_api_load_balancer_enabled ? 1 : 0
+
+  source {
+    private_network_id = scaleway_vpc_private_network.cluster.id
+  }
+
+  tags = [var.cluster_name, "role=kube-api-lb"]
+}
+
 resource "scaleway_lb" "kube_api" {
   count = var.kube_api_load_balancer_enabled ? 1 : 0
 
@@ -27,9 +36,16 @@ resource "scaleway_lb" "kube_api" {
   type   = var.kube_api_load_balancer_type
   tags   = [var.cluster_name, "role=kube-api"]
 
-  private_network {
-    private_network_id = scaleway_vpc_private_network.cluster.id
-  }
+  external_private_networks = true
+}
+
+resource "scaleway_lb_private_network" "kube_api" {
+  count = var.kube_api_load_balancer_enabled ? 1 : 0
+
+  lb_id              = scaleway_lb.kube_api[0].id
+  private_network_id = scaleway_vpc_private_network.cluster.id
+  zone               = var.scaleway_zone
+  ipam_ip_ids        = [scaleway_ipam_ip.kube_api_lb[0].id]
 }
 
 resource "scaleway_lb_backend" "kube_api" {
@@ -45,6 +61,8 @@ resource "scaleway_lb_backend" "kube_api" {
   health_check_delay       = "${var.kube_api_load_balancer_health_check_interval}s"
   health_check_timeout     = "${var.kube_api_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.kube_api_load_balancer_health_check_retries
+
+  depends_on = [scaleway_lb_private_network.kube_api]
 }
 
 # Trustd backend/frontend (port 50001) - required for worker certificate signing
@@ -62,6 +80,8 @@ resource "scaleway_lb_backend" "trustd" {
   health_check_delay       = "${var.kube_api_load_balancer_health_check_interval}s"
   health_check_timeout     = "${var.kube_api_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.kube_api_load_balancer_health_check_retries
+
+  depends_on = [scaleway_lb_private_network.kube_api]
 }
 
 resource "scaleway_lb_frontend" "trustd" {
@@ -87,6 +107,8 @@ resource "scaleway_lb_backend" "talos_api" {
   health_check_delay       = "${var.kube_api_load_balancer_health_check_interval}s"
   health_check_timeout     = "${var.kube_api_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.kube_api_load_balancer_health_check_retries
+
+  depends_on = [scaleway_lb_private_network.kube_api]
 }
 
 resource "scaleway_lb_frontend" "talos_api" {
@@ -120,6 +142,16 @@ resource "scaleway_lb_ip" "ingress" {
   reverse = local.computed_rdns_for_ingress_lb
 }
 
+resource "scaleway_ipam_ip" "ingress_lb" {
+  count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
+
+  source {
+    private_network_id = scaleway_vpc_private_network.cluster.id
+  }
+
+  tags = [var.cluster_name, "role=ingress-lb"]
+}
+
 resource "scaleway_lb" "ingress" {
   count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
 
@@ -129,9 +161,16 @@ resource "scaleway_lb" "ingress" {
   type   = var.ingress_load_balancer_type
   tags   = [var.cluster_name, "role=ingress"]
 
-  private_network {
-    private_network_id = scaleway_vpc_private_network.cluster.id
-  }
+  external_private_networks = true
+}
+
+resource "scaleway_lb_private_network" "ingress" {
+  count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
+
+  lb_id              = scaleway_lb.ingress[0].id
+  private_network_id = scaleway_vpc_private_network.cluster.id
+  zone               = var.scaleway_zone
+  ipam_ip_ids        = [scaleway_ipam_ip.ingress_lb[0].id]
 }
 
 resource "scaleway_lb_backend" "ingress_http" {
@@ -150,6 +189,8 @@ resource "scaleway_lb_backend" "ingress_http" {
   health_check_delay       = "${var.ingress_load_balancer_health_check_interval}s"
   health_check_timeout     = "${var.ingress_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.ingress_load_balancer_health_check_retries
+
+  depends_on = [scaleway_lb_private_network.ingress]
 }
 
 resource "scaleway_lb_backend" "ingress_https" {
@@ -168,6 +209,8 @@ resource "scaleway_lb_backend" "ingress_https" {
   health_check_delay       = "${var.ingress_load_balancer_health_check_interval}s"
   health_check_timeout     = "${var.ingress_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.ingress_load_balancer_health_check_retries
+
+  depends_on = [scaleway_lb_private_network.ingress]
 }
 
 resource "scaleway_lb_frontend" "ingress_http" {
@@ -230,6 +273,16 @@ locals {
   ]...)
 }
 
+resource "scaleway_ipam_ip" "ingress_pool_lb" {
+  for_each = local.ingress_pool_lb_map
+
+  source {
+    private_network_id = scaleway_vpc_private_network.cluster.id
+  }
+
+  tags = [var.cluster_name, "role=ingress-pool-lb", "pool=${each.key}"]
+}
+
 resource "scaleway_lb" "ingress_pool" {
   for_each = local.ingress_pool_lb_map
 
@@ -239,9 +292,16 @@ resource "scaleway_lb" "ingress_pool" {
   type   = each.value.load_balancer_type
   tags   = [var.cluster_name, "role=ingress"]
 
-  private_network {
-    private_network_id = scaleway_vpc_private_network.cluster.id
-  }
+  external_private_networks = true
+}
+
+resource "scaleway_lb_private_network" "ingress_pool" {
+  for_each = scaleway_lb.ingress_pool
+
+  lb_id              = each.value.id
+  private_network_id = scaleway_vpc_private_network.cluster.id
+  zone               = each.value.zone
+  ipam_ip_ids        = [scaleway_ipam_ip.ingress_pool_lb[each.key].id]
 }
 
 resource "scaleway_lb_backend" "ingress_pool_http" {
@@ -261,7 +321,7 @@ resource "scaleway_lb_backend" "ingress_pool_http" {
   health_check_timeout     = "${var.ingress_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.ingress_load_balancer_health_check_retries
 
-  depends_on = [scaleway_lb.ingress_pool]
+  depends_on = [scaleway_lb_private_network.ingress_pool]
 }
 
 resource "scaleway_lb_backend" "ingress_pool_https" {
@@ -281,7 +341,7 @@ resource "scaleway_lb_backend" "ingress_pool_https" {
   health_check_timeout     = "${var.ingress_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.ingress_load_balancer_health_check_retries
 
-  depends_on = [scaleway_lb.ingress_pool]
+  depends_on = [scaleway_lb_private_network.ingress_pool]
 }
 
 resource "scaleway_lb_frontend" "ingress_pool_http" {
