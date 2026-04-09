@@ -27,15 +27,9 @@ resource "scaleway_lb" "kube_api" {
   type   = var.kube_api_load_balancer_type
   tags   = [var.cluster_name, "role=kube-api"]
 
-  external_private_networks = true
-}
-
-resource "scaleway_lb_private_network" "kube_api" {
-  count = var.kube_api_load_balancer_enabled ? 1 : 0
-
-  lb_id              = scaleway_lb.kube_api[0].id
-  private_network_id = scaleway_vpc_private_network.cluster.id
-  zone               = var.scaleway_zone
+  private_network {
+    private_network_id = scaleway_vpc_private_network.cluster.id
+  }
 }
 
 resource "scaleway_lb_backend" "kube_api" {
@@ -135,15 +129,9 @@ resource "scaleway_lb" "ingress" {
   type   = var.ingress_load_balancer_type
   tags   = [var.cluster_name, "role=ingress"]
 
-  external_private_networks = true
-}
-
-resource "scaleway_lb_private_network" "ingress" {
-  count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
-
-  lb_id              = scaleway_lb.ingress[0].id
-  private_network_id = scaleway_vpc_private_network.cluster.id
-  zone               = var.scaleway_zone
+  private_network {
+    private_network_id = scaleway_vpc_private_network.cluster.id
+  }
 }
 
 resource "scaleway_lb_backend" "ingress_http" {
@@ -251,15 +239,9 @@ resource "scaleway_lb" "ingress_pool" {
   type   = each.value.load_balancer_type
   tags   = [var.cluster_name, "role=ingress"]
 
-  external_private_networks = true
-}
-
-resource "scaleway_lb_private_network" "ingress_pool" {
-  for_each = scaleway_lb.ingress_pool
-
-  lb_id              = each.value.id
-  private_network_id = scaleway_vpc_private_network.cluster.id
-  zone               = each.value.zone
+  private_network {
+    private_network_id = scaleway_vpc_private_network.cluster.id
+  }
 }
 
 resource "scaleway_lb_backend" "ingress_pool_http" {
@@ -279,7 +261,7 @@ resource "scaleway_lb_backend" "ingress_pool_http" {
   health_check_timeout     = "${var.ingress_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.ingress_load_balancer_health_check_retries
 
-  depends_on = [scaleway_lb_private_network.ingress_pool]
+  depends_on = [scaleway_lb.ingress_pool]
 }
 
 resource "scaleway_lb_backend" "ingress_pool_https" {
@@ -299,7 +281,7 @@ resource "scaleway_lb_backend" "ingress_pool_https" {
   health_check_timeout     = "${var.ingress_load_balancer_health_check_timeout}s"
   health_check_max_retries = var.ingress_load_balancer_health_check_retries
 
-  depends_on = [scaleway_lb_private_network.ingress_pool]
+  depends_on = [scaleway_lb.ingress_pool]
 }
 
 resource "scaleway_lb_frontend" "ingress_pool_http" {
