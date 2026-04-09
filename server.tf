@@ -82,7 +82,7 @@ resource "scaleway_instance_private_nic" "control_plane" {
   for_each = local.control_plane_servers_map
 
   server_id          = scaleway_instance_server.control_plane[each.key].id
-  private_network_id = scaleway_vpc_private_network.control_plane.id
+  private_network_id = scaleway_vpc_private_network.cluster.id
 }
 
 data "scaleway_ipam_ip" "control_plane" {
@@ -139,7 +139,7 @@ resource "scaleway_instance_private_nic" "worker" {
   for_each = local.worker_servers_map
 
   server_id          = scaleway_instance_server.worker[each.key].id
-  private_network_id = scaleway_vpc_private_network.worker[each.value.name].id
+  private_network_id = scaleway_vpc_private_network.cluster.id
 }
 
 data "scaleway_ipam_ip" "worker" {

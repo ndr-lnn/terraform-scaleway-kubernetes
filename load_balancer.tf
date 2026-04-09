@@ -1,7 +1,8 @@
 # Kubernetes API Load Balancer
 locals {
-  # LB private IP is pre-computed from the load_balancer subnet. The LB gets this IP via IPAM.
-  kube_api_load_balancer_private_ipv4 = var.kube_api_load_balancer_enabled ? cidrhost(scaleway_vpc_private_network.load_balancer.ipv4_subnet[0].subnet, -2) : null
+  # On Scaleway, the LB private IP is IPAM-assigned (not predictable).
+  # Use the primary control plane node's private IP as the internal API endpoint instead.
+  kube_api_load_balancer_private_ipv4 = var.kube_api_load_balancer_enabled ? local.control_plane_private_ipv4_list[0] : null
   kube_api_load_balancer_public_ipv4  = var.kube_api_load_balancer_enabled ? scaleway_lb_ip.kube_api[0].ip_address : null
   kube_api_load_balancer_public_ipv6  = null # Scaleway LB IPs are IPv4-only
   kube_api_load_balancer_name         = "${var.cluster_name}-kube-api"
@@ -33,7 +34,7 @@ resource "scaleway_lb_private_network" "kube_api" {
   count = var.kube_api_load_balancer_enabled ? 1 : 0
 
   lb_id              = scaleway_lb.kube_api[0].id
-  private_network_id = scaleway_vpc_private_network.load_balancer.id
+  private_network_id = scaleway_vpc_private_network.cluster.id
   zone               = var.scaleway_zone
 }
 
@@ -141,7 +142,7 @@ resource "scaleway_lb_private_network" "ingress" {
   count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
 
   lb_id              = scaleway_lb.ingress[0].id
-  private_network_id = scaleway_vpc_private_network.load_balancer.id
+  private_network_id = scaleway_vpc_private_network.cluster.id
   zone               = var.scaleway_zone
 }
 
@@ -257,7 +258,7 @@ resource "scaleway_lb_private_network" "ingress_pool" {
   for_each = scaleway_lb.ingress_pool
 
   lb_id              = each.value.id
-  private_network_id = scaleway_vpc_private_network.load_balancer.id
+  private_network_id = scaleway_vpc_private_network.cluster.id
   zone               = each.value.zone
 }
 

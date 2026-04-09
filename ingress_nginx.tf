@@ -103,7 +103,7 @@ data "helm_template" "ingress_nginx" {
           {
             proxy-real-ip-cidr = (
               var.ingress_nginx_service_external_traffic_policy == "Local" ?
-              scaleway_vpc_private_network.load_balancer.ipv4_subnet[0].subnet :
+              scaleway_vpc_private_network.cluster.ipv4_subnet[0].subnet :
               local.network_node_ipv4_cidr
             )
             compute-full-forwarded-for = true

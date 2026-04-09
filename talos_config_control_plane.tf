@@ -114,7 +114,7 @@ locals {
             )
             etcd = merge(
               {
-                advertisedSubnets = [scaleway_vpc_private_network.control_plane.ipv4_subnet[0].subnet]
+                advertisedSubnets = [scaleway_vpc_private_network.cluster.ipv4_subnet[0].subnet]
                 extraArgs = {
                   "listen-metrics-urls" = "http://0.0.0.0:2381"
                 }

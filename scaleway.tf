@@ -31,7 +31,7 @@ data "helm_template" "scaleway_ccm" {
   values = [
     yamlencode({
       image = { tag = var.scaleway_ccm_version }
-      env   = { PN_ID = scaleway_vpc_private_network.control_plane.id }
+      env   = { PN_ID = scaleway_vpc_private_network.cluster.id }
     }),
     yamlencode(var.scaleway_ccm_helm_values),
   ]
@@ -81,10 +81,11 @@ data "helm_template" "scaleway_csi" {
       controller = {
         scaleway = {
           env = {
+            SCW_ACCESS_KEY         = var.scaleway_access_key
+            SCW_SECRET_KEY         = var.scaleway_secret_key
             SCW_DEFAULT_ZONE       = var.scaleway_zone
             SCW_DEFAULT_PROJECT_ID = var.scaleway_project_id
           }
-          existingSecretName = "scaleway-secret"
         }
         volumeExtraLabels = var.scaleway_csi_volume_extra_labels
       }
