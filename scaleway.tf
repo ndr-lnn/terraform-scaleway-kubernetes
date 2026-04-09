@@ -109,8 +109,18 @@ locals {
     }
   }) : null
 
+  # The Scaleway CSI Helm chart omits namespace from rendered templates (chart bug).
+  # We inject "namespace: kube-system" into all resources that have a metadata block
+  # but no namespace field, so they deploy to kube-system instead of default.
+  scaleway_csi_manifest_raw = var.scaleway_csi_enabled ? data.helm_template.scaleway_csi[0].manifest : ""
+  scaleway_csi_manifest_namespaced = replace(
+    local.scaleway_csi_manifest_raw,
+    "metadata:\n  name:",
+    "metadata:\n  namespace: kube-system\n  name:"
+  )
+
   scaleway_csi_manifest = var.scaleway_csi_enabled ? {
     name     = "scaleway-csi"
-    contents = join("\n---\n", compact([local.scaleway_csi_secret_manifest, data.helm_template.scaleway_csi[0].manifest]))
+    contents = join("\n---\n", compact([local.scaleway_csi_secret_manifest, local.scaleway_csi_manifest_namespaced]))
   } : null
 }
