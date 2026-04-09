@@ -52,6 +52,57 @@ resource "scaleway_lb_backend" "kube_api" {
   health_check_max_retries = var.kube_api_load_balancer_health_check_retries
 }
 
+# Trustd backend/frontend (port 50001) - required for worker certificate signing
+# Workers connect to trustd via the LB since there's no VIP on Scaleway
+resource "scaleway_lb_backend" "trustd" {
+  count = var.kube_api_load_balancer_enabled ? 1 : 0
+
+  lb_id            = scaleway_lb.kube_api[0].id
+  name             = "trustd"
+  forward_protocol = "tcp"
+  forward_port     = 50001
+  server_ips       = local.control_plane_private_ipv4_list
+
+  health_check_tcp {}
+  health_check_delay       = "${var.kube_api_load_balancer_health_check_interval}s"
+  health_check_timeout     = "${var.kube_api_load_balancer_health_check_timeout}s"
+  health_check_max_retries = var.kube_api_load_balancer_health_check_retries
+}
+
+resource "scaleway_lb_frontend" "trustd" {
+  count = var.kube_api_load_balancer_enabled ? 1 : 0
+
+  lb_id        = scaleway_lb.kube_api[0].id
+  name         = "trustd"
+  backend_id   = scaleway_lb_backend.trustd[0].id
+  inbound_port = 50001
+}
+
+# Talos API backend/frontend (port 50000) - for talosctl access via LB
+resource "scaleway_lb_backend" "talos_api" {
+  count = var.kube_api_load_balancer_enabled ? 1 : 0
+
+  lb_id            = scaleway_lb.kube_api[0].id
+  name             = "talos-api"
+  forward_protocol = "tcp"
+  forward_port     = 50000
+  server_ips       = local.control_plane_private_ipv4_list
+
+  health_check_tcp {}
+  health_check_delay       = "${var.kube_api_load_balancer_health_check_interval}s"
+  health_check_timeout     = "${var.kube_api_load_balancer_health_check_timeout}s"
+  health_check_max_retries = var.kube_api_load_balancer_health_check_retries
+}
+
+resource "scaleway_lb_frontend" "talos_api" {
+  count = var.kube_api_load_balancer_enabled ? 1 : 0
+
+  lb_id        = scaleway_lb.kube_api[0].id
+  name         = "talos-api"
+  backend_id   = scaleway_lb_backend.talos_api[0].id
+  inbound_port = 50000
+}
+
 resource "scaleway_lb_frontend" "kube_api" {
   count = var.kube_api_load_balancer_enabled ? 1 : 0
 
