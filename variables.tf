@@ -1627,12 +1627,12 @@ variable "ingress_load_balancer_type" {
 
 variable "ingress_load_balancer_algorithm" {
   type        = string
-  default     = "least_connections"
-  description = "Specifies the algorithm used by the ingress load balancer. 'round_robin' distributes requests evenly across all servers, while 'least_connections' directs requests to the server with the fewest active connections."
+  default     = "leastconn"
+  description = "Specifies the algorithm used by the ingress load balancer. Scaleway accepts: 'roundrobin', 'leastconn', 'first'."
 
   validation {
-    condition     = contains(["round_robin", "least_connections"], var.ingress_load_balancer_algorithm)
-    error_message = "Invalid load balancer algorithm. Allowed values are 'round_robin' or 'least_connections'."
+    condition     = contains(["roundrobin", "leastconn", "first"], var.ingress_load_balancer_algorithm)
+    error_message = "Invalid load balancer algorithm. Allowed values are 'roundrobin', 'leastconn', or 'first'."
   }
 }
 
@@ -1743,11 +1743,11 @@ variable "ingress_load_balancer_pools" {
     condition = alltrue([
       for pool in var.ingress_load_balancer_pools :
       pool.load_balancer_algorithm == null || contains(
-        ["round_robin", "least_connections"],
+        ["roundrobin", "leastconn", "first"],
         coalesce(pool.load_balancer_algorithm, var.ingress_load_balancer_algorithm)
       )
     ])
-    error_message = "Invalid Load Balancer algorithm specified. Allowed values are 'round_robin' or 'least_connections'. If not specified, the default ingress_load_balancer_algorithm will be used."
+    error_message = "Invalid Load Balancer algorithm specified. Allowed values are 'roundrobin', 'leastconn', or 'first'."
   }
 
   validation {
