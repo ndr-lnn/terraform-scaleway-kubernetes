@@ -16,11 +16,9 @@ locals {
     var.ingress_nginx_enabled &&
     length(var.ingress_load_balancer_pools) == 0
   )
-  ingress_nginx_service_type = (
-    local.ingress_nginx_service_load_balancer_required ?
-    "LoadBalancer" :
-    "NodePort"
-  )
+  # Always use NodePort on Scaleway -- the Terraform-managed LB forwards to these NodePorts.
+  # Scaleway CCM can't reliably provision LBs with private network attachment.
+  ingress_nginx_service_type            = "NodePort"
   ingress_nginx_service_node_port_http  = 30000
   ingress_nginx_service_node_port_https = 30001
 }
