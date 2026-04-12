@@ -12,15 +12,9 @@ locals {
     local.worker_sum < 3 ? 2 : 3
   )
 
-  ingress_nginx_service_load_balancer_required = (
-    var.ingress_nginx_enabled &&
-    length(var.ingress_load_balancer_pools) == 0
-  )
-  # NodePort with fixed ports (30000/30001) for predictable LB backend config.
-  # The Terraform-managed ingress LB forwards to these ports via the private network.
-  ingress_nginx_service_type = "NodePort"
-  ingress_nginx_service_node_port_http  = 30000
-  ingress_nginx_service_node_port_https = 30001
+  # CCM-managed LoadBalancer: CCM creates the LB, attaches to PN via PN_ID,
+  # configures backends using node IPs. Annotations control LB behavior.
+  ingress_nginx_service_type = "LoadBalancer"
 }
 
 data "helm_template" "ingress_nginx" {
@@ -76,36 +70,21 @@ data "helm_template" "ingress_nginx" {
         ] : []
         enableTopologyAwareRouting = var.ingress_nginx_topology_aware_routing
         watchIngressWithoutClass   = true
-        service = merge(
-          {
-            type                  = local.ingress_nginx_service_type
-            externalTrafficPolicy = var.ingress_nginx_service_external_traffic_policy
-          },
-          local.ingress_nginx_service_type == "NodePort" ?
-          {
-            nodePorts = {
-              http  = local.ingress_nginx_service_node_port_http
-              https = local.ingress_nginx_service_node_port_https
-            }
-          } : {},
-          local.ingress_nginx_service_type == "LoadBalancer" ?
-          {
-            annotations = {
-              "service.beta.kubernetes.io/scw-loadbalancer-zone"              = var.scaleway_zone
-              "service.beta.kubernetes.io/scw-loadbalancer-type"              = var.ingress_load_balancer_type
-              "service.beta.kubernetes.io/scw-loadbalancer-proxy-protocol-v2" = var.ingress_load_balancer_proxy_protocol ? "*" : "none"
-            }
-          } : {}
-        )
+        service = {
+          type                  = local.ingress_nginx_service_type
+          externalTrafficPolicy = var.ingress_nginx_service_external_traffic_policy
+          annotations = {
+            "service.beta.kubernetes.io/scw-loadbalancer-zone"              = var.scaleway_zone
+            "service.beta.kubernetes.io/scw-loadbalancer-type"              = var.ingress_load_balancer_type
+            "service.beta.kubernetes.io/scw-loadbalancer-proxy-protocol-v2" = var.ingress_load_balancer_proxy_protocol ? "*" : "false"
+            "service.beta.kubernetes.io/scw-loadbalancer-use-hostname"      = "true"
+          }
+        }
         config = merge(
           {
-            proxy-real-ip-cidr = (
-              var.ingress_nginx_service_external_traffic_policy == "Local" ?
-              scaleway_vpc_private_network.cluster.ipv4_subnet[0].subnet :
-              local.network_node_ipv4_cidr
-            )
+            proxy-real-ip-cidr         = scaleway_vpc_private_network.cluster.ipv4_subnet[0].subnet
             compute-full-forwarded-for = true
-            use-proxy-protocol         = true
+            use-proxy-protocol         = var.ingress_load_balancer_proxy_protocol ? "true" : "false"
           },
           var.ingress_nginx_config
         )
@@ -116,8 +95,6 @@ data "helm_template" "ingress_nginx" {
     }),
     yamlencode(var.ingress_nginx_helm_values)
   ]
-
-  depends_on = [scaleway_lb_private_network.ingress]
 }
 
 locals {

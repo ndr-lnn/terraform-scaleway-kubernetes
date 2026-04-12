@@ -31,10 +31,11 @@ data "helm_template" "scaleway_ccm" {
   values = [
     yamlencode({
       image = { tag = var.scaleway_ccm_version }
-      # PN_ID removed: causes 500 errors when CCM auto-provisions LBs with PN attachment.
-      # Without PN_ID, CCM creates public-only LBs successfully.
-      # The Terraform-managed kube-api LB uses explicit IPAM for PN attachment.
-      env = {}
+      # PN_ID tells CCM to attach LoadBalancer Services to the cluster PN.
+      # Bare UUID required — strip the "fr-par/" region prefix from Terraform's ID.
+      env = {
+        PN_ID = regex("[^/]+$", scaleway_vpc_private_network.cluster.id)
+      }
     }),
     yamlencode(var.scaleway_ccm_helm_values),
   ]
