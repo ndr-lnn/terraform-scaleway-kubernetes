@@ -1625,13 +1625,164 @@ variable "ingress_load_balancer_type" {
   description = "Specifies the type of load balancer to be used for the ingress (e.g., 'LB-S', 'LB-M', 'LB-L')."
 }
 
+variable "ingress_load_balancer_public_network_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables or disables the public interface of the Load Balancer."
+}
+
+variable "ingress_load_balancer_algorithm" {
+  type        = string
+  default     = "leastconn"
+  description = "Specifies the algorithm used by the ingress load balancer. Scaleway accepts: 'roundrobin', 'leastconn', 'first'."
+
+  validation {
+    condition     = contains(["roundrobin", "leastconn", "first"], var.ingress_load_balancer_algorithm)
+    error_message = "Invalid load balancer algorithm. Allowed values are 'roundrobin', 'leastconn', or 'first'."
+  }
+}
+
+variable "ingress_load_balancer_health_check_interval" {
+  type        = number
+  default     = 3
+  description = "The interval (in seconds) between consecutive health checks. Must be between 3 and 60 seconds."
+
+  validation {
+    condition = (
+      var.ingress_load_balancer_health_check_interval >= 3 &&
+      var.ingress_load_balancer_health_check_interval <= 60
+    )
+    error_message = "The health check interval must be between 3 and 60 seconds."
+  }
+}
+
+variable "ingress_load_balancer_health_check_retries" {
+  type        = number
+  default     = 3
+  description = "The number of retries for a failed health check before marking the target as unhealthy. Must be between 0 and 5."
+
+  validation {
+    condition = (
+      var.ingress_load_balancer_health_check_retries >= 0 &&
+      var.ingress_load_balancer_health_check_retries <= 5
+    )
+    error_message = "The health check retries must be between 0 and 5."
+  }
+}
+
+variable "ingress_load_balancer_health_check_timeout" {
+  type        = number
+  default     = 3
+  description = "The timeout (in seconds) for each health check attempt. It cannot exceed the interval and must be a positive value."
+
+  validation {
+    condition = (
+      var.ingress_load_balancer_health_check_timeout > 0 &&
+      var.ingress_load_balancer_health_check_timeout <= var.ingress_load_balancer_health_check_interval
+    )
+    error_message = "The health check timeout must be a positive number and cannot exceed the interval."
+  }
+}
+
 variable "ingress_load_balancer_proxy_protocol" {
   type        = bool
   default     = true
   description = "Enables PROXY protocol on the ingress load balancer backends. When enabled, the real client IP is forwarded to ingress-nginx via the PROXY protocol header."
 }
 
+variable "ingress_load_balancer_rdns" {
+  type        = string
+  default     = null
+  description = "Specifies the general reverse DNS FQDN for the ingress load balancer, used for internal networking and service discovery. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
 
+  validation {
+    condition     = var.ingress_load_balancer_rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.ingress_load_balancer_rdns))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "ingress_load_balancer_rdns_ipv4" {
+  type        = string
+  default     = null
+  description = "Defines the IPv4-specific reverse DNS FQDN for the ingress load balancer, crucial for network operations and service discovery. Supports dynamic placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+
+  validation {
+    condition     = var.ingress_load_balancer_rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", var.ingress_load_balancer_rdns_ipv4))
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters."
+  }
+}
+
+variable "ingress_load_balancer_pools" {
+  type = list(object({
+    name                    = string
+    zone                    = string
+    type                    = optional(string)
+    labels                  = optional(map(string), {})
+    count                   = optional(number, 1)
+    target_label_selector   = optional(list(string), [])
+    local_traffic           = optional(bool, false)
+    load_balancer_algorithm = optional(string)
+    public_network_enabled  = optional(bool)
+    rdns                    = optional(string)
+    rdns_ipv4               = optional(string)
+    rdns_ipv6               = optional(string)
+  }))
+  default     = []
+  description = "Defines configuration settings for Ingress Load Balancer pools within the cluster."
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : contains([
+        "fr-par-1", "fr-par-2", "fr-par-3", "nl-ams-1", "nl-ams-2", "nl-ams-3", "pl-waw-1", "pl-waw-2", "pl-waw-3"
+      ], pool.zone)
+    ])
+    error_message = "Each Load Balancer zone must be a valid Scaleway availability zone (e.g., 'fr-par-1', 'nl-ams-1', 'pl-waw-1')."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools :
+      pool.load_balancer_algorithm == null || contains(
+        ["roundrobin", "leastconn", "first"],
+        coalesce(pool.load_balancer_algorithm, var.ingress_load_balancer_algorithm)
+      )
+    ])
+    error_message = "Invalid Load Balancer algorithm specified. Allowed values are 'roundrobin', 'leastconn', or 'first'."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : length(var.cluster_name) + length(pool.name) <= 56
+    ])
+    error_message = "The combined length of the cluster name and any Load Balancer pool name must not exceed 56 characters."
+  }
+
+  validation {
+    condition     = length(var.ingress_load_balancer_pools) == length(distinct([for pool in var.ingress_load_balancer_pools : pool.name]))
+    error_message = "Duplicate Load Balancer pool names are not allowed. Each pool name must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : pool.rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", pool.rdns))
+    ])
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : pool.rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", pool.rdns_ipv4))
+    ])
+    error_message = "The rdns_ipv4 must be a valid IPv4 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in var.ingress_load_balancer_pools : pool.rdns_ipv6 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", pool.rdns_ipv6))
+    ])
+    error_message = "The rdns_ipv6 must be a valid IPv6 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+}
 
 # Gateway API CRDs
 variable "gateway_api_crds_enabled" {

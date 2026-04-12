@@ -5,7 +5,9 @@
 #   - Instance public IPv6: Scaleway does not provide a dedicated rDNS resource for the inline IPv6
 #     address on `scaleway_instance_server`. IPv6 rDNS is therefore NOT supported on Scaleway and is
 #     silently skipped. This is a known limitation.
-#   - Load balancer IPs: rDNS for CCM-managed LBs is handled via LB annotations, not Terraform.
+#   - Load balancer IPs: rDNS is set via the `reverse` argument on `scaleway_lb_ip` directly.
+#     The `computed_rdns_for_ingress_pool_lb` local defined here is consumed by `load_balancer.tf`
+#     to populate those `reverse` fields. The default CCM-managed ingress LB handles rDNS via annotations.
 
 locals {
   rdns_cluster_domain_pattern = "/{{\\s*cluster-domain\\s*}}/"
@@ -19,6 +21,12 @@ locals {
 
   cluster_rdns_ipv4 = var.cluster_rdns_ipv4 != null ? var.cluster_rdns_ipv4 : var.cluster_rdns
   cluster_rdns_ipv6 = var.cluster_rdns_ipv6 != null ? var.cluster_rdns_ipv6 : var.cluster_rdns
+
+  ingress_load_balancer_rdns_ipv4 = (
+    var.ingress_load_balancer_rdns_ipv4 != null ? var.ingress_load_balancer_rdns_ipv4 :
+    var.ingress_load_balancer_rdns != null ? var.ingress_load_balancer_rdns :
+    local.cluster_rdns_ipv4
+  )
 
   # Helper: apply all template substitutions to a raw rDNS pattern.
   # Used by the computed_rdns_for_* locals below.
@@ -59,6 +67,34 @@ locals {
     if local.worker_nodepools_map[local.worker_servers_map[key].name].rdns_ipv4 != null
   }
 
+  # ─── Ingress LB pool rDNS ───────────────────────────────────────────────────
+  # Consumed by `scaleway_lb_ip.ingress_pool[key].reverse` in load_balancer.tf.
+  # Keyed by the same key as scaleway_lb_ip.ingress_pool.
+  #
+  # Note: The `{{ id }}` and `{{ ip-labels }}` placeholders are NOT supported for
+  # pool LB rDNS on Scaleway. The `reverse` field is set on `scaleway_lb_ip` which
+  # is created before the LB resource, so the LB ID and the IP address are not yet
+  # known at plan time. These placeholders are left unsubstituted if present.
+  # For full placeholder support, avoid `{{ id }}` and `{{ ip-labels }}` in
+  # `ingress_load_balancer_pools[*].rdns_ipv4` when using Scaleway.
+  computed_rdns_for_ingress_pool_lb = {
+    for entry in flatten([
+      for pool in local.ingress_load_balancer_pools : [
+        for lb_index in range(pool.count) : {
+          key = "${var.cluster_name}-${pool.name}-${lb_index + 1}"
+          rdns = replace(replace(replace(replace(replace(replace(
+            pool.rdns_ipv4,
+            local.rdns_cluster_domain_pattern, var.cluster_domain),
+            local.rdns_cluster_name_pattern, var.cluster_name),
+            local.rdns_hostname_pattern, "${var.cluster_name}-${pool.name}-${lb_index + 1}"),
+            local.rdns_ip_type_pattern, "ipv4"),
+            local.rdns_pool_pattern, pool.name),
+          local.rdns_role_pattern, "ingress")
+        }
+        if pool.rdns_ipv4 != null
+      ]
+    ]) : entry.key => entry.rdns
+  }
 }
 
 # ─── Control Plane Instance IPv4 rDNS ───────────────────────────────────────

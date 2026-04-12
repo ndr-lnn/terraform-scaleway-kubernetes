@@ -15,6 +15,12 @@ locals {
   # CCM-managed LoadBalancer: CCM creates the LB, attaches to PN via PN_ID,
   # configures backends using node IPs. Annotations control LB behavior.
   ingress_nginx_service_type = "LoadBalancer"
+
+  # Fixed NodePorts for predictable LB backend config.
+  # Used by ingress_load_balancer_pools (Terraform-managed multi-zone LBs).
+  # K8s also auto-assigns these as NodePorts on the LoadBalancer service.
+  ingress_nginx_service_node_port_http  = 30000
+  ingress_nginx_service_node_port_https = 30001
 }
 
 data "helm_template" "ingress_nginx" {
@@ -73,6 +79,10 @@ data "helm_template" "ingress_nginx" {
         service = {
           type                  = local.ingress_nginx_service_type
           externalTrafficPolicy = var.ingress_nginx_service_external_traffic_policy
+          nodePorts = {
+            http  = local.ingress_nginx_service_node_port_http
+            https = local.ingress_nginx_service_node_port_https
+          }
           annotations = {
             "service.beta.kubernetes.io/scw-loadbalancer-zone"              = var.scaleway_zone
             "service.beta.kubernetes.io/scw-loadbalancer-type"              = var.ingress_load_balancer_type
