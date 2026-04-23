@@ -63,7 +63,10 @@ resource "scaleway_instance_server" "control_plane" {
   tags = [var.cluster_name, "role=control-plane", "nodepool=${each.value.name}"]
 
   lifecycle {
-    ignore_changes = [image, user_data, security_group_id]
+    # additional_volume_ids: ignored because Scaleway CSI dynamically attaches
+    # PVC-backed volumes to the instance, which would otherwise show as drift
+    # and cause Terraform to detach live workload storage.
+    ignore_changes = [image, user_data, security_group_id, additional_volume_ids]
   }
 }
 
@@ -120,7 +123,10 @@ resource "scaleway_instance_server" "worker" {
   tags = [var.cluster_name, "role=worker", "nodepool=${each.value.name}"]
 
   lifecycle {
-    ignore_changes = [image, user_data, security_group_id]
+    # additional_volume_ids: ignored because Scaleway CSI dynamically attaches
+    # PVC-backed volumes to the instance, which would otherwise show as drift
+    # and cause Terraform to detach live workload storage.
+    ignore_changes = [image, user_data, security_group_id, additional_volume_ids]
   }
 }
 
