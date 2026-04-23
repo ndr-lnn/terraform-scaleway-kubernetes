@@ -72,8 +72,12 @@ locals {
     worker_nodes                        = local.worker_private_ipv4_list
   })
 
-  # Cluster Status (read from S3 state marker)
-  cluster_initialized = data.external.cluster_state.result.initialized == "true"
+  # Cluster Status (read from S3 state marker).
+  # nonsensitive() because data.external.cluster_state.result inherits the
+  # sensitivity of its query (which carries scaleway_secret_key), but the
+  # boolean result itself is safe to expose and is consumed by count/for_each-
+  # adjacent conditionals that reject sensitive values.
+  cluster_initialized = nonsensitive(data.external.cluster_state.result.initialized) == "true"
 
   talos_staged_configuration_automatic_reboot_enabled = (
     var.talos_staged_configuration_automatic_reboot_enabled &&
@@ -81,24 +85,54 @@ locals {
   )
 }
 
-# S3-based cluster state marker (written after bootstrap, read on subsequent runs)
+# S3-based cluster state marker (written after bootstrap, read on subsequent runs).
+#
+# Credentials are passed via stdin (query block) rather than interpolated into
+# the program template so they never land in Terraform logs. Without valid
+# creds, aws s3api head-object would fail silently (stderr suppressed) and the
+# script would always report initialized=false -- starving the downstream
+# synchronize_manifests / upgrade-k8s steps on every post-bootstrap run.
 data "external" "cluster_state" {
   program = ["bash", "-c", <<-EOT
-    if command -v aws >/dev/null 2>&1; then
-      if aws s3api head-object \
-        --endpoint-url "https://s3.${var.scaleway_region}.scw.cloud" \
-        --bucket "${scaleway_object_bucket.talos_images.name}" \
-        --key "state/${var.cluster_name}-initialized" \
-        2>/dev/null; then
-        echo '{"initialized":"true"}'
-      else
-        echo '{"initialized":"false"}'
-      fi
+    set -eu
+    input=$(cat)
+    access_key=$(printf '%s' "$input" | jq -r '.access_key')
+    secret_key=$(printf '%s' "$input" | jq -r '.secret_key')
+    region=$(printf '%s' "$input" | jq -r '.region')
+    bucket=$(printf '%s' "$input" | jq -r '.bucket')
+    cluster_name=$(printf '%s' "$input" | jq -r '.cluster_name')
+
+    if ! command -v aws >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+      echo '{"initialized":"false"}'
+      exit 0
+    fi
+
+    # When access/secret keys are passed in, export them; otherwise rely on
+    # whatever credentials the shell environment already carries (AWS_* or
+    # assumed role). This supports both explicit var.scaleway_access_key and
+    # the SCW_* env-var fallback pattern the scaleway provider uses.
+    if [ -n "$access_key" ]; then export AWS_ACCESS_KEY_ID="$access_key"; fi
+    if [ -n "$secret_key" ]; then export AWS_SECRET_ACCESS_KEY="$secret_key"; fi
+
+    if aws s3api head-object \
+         --endpoint-url "https://s3.$region.scw.cloud" \
+         --bucket "$bucket" \
+         --key "state/$cluster_name-initialized" \
+         >/dev/null 2>&1; then
+      echo '{"initialized":"true"}'
     else
       echo '{"initialized":"false"}'
     fi
   EOT
   ]
+
+  query = {
+    access_key   = coalesce(var.scaleway_access_key, "")
+    secret_key   = coalesce(var.scaleway_secret_key, "")
+    region       = var.scaleway_region
+    bucket       = scaleway_object_bucket.talos_images.name
+    cluster_name = var.cluster_name
+  }
 
   depends_on = [scaleway_object_bucket.talos_images]
 }
