@@ -470,11 +470,22 @@ variable "worker_config_patches" {
 variable "talos_ephemeral_volume_size_gb" {
   type        = number
   default     = 15
-  description = "Size in GB of the additional l_ssd volume for the Talos EPHEMERAL partition (/dev/vdb). The boot image uses ~4.5GB on /dev/vda. Total l_ssd must not exceed the instance type limit (e.g., DEV1-S = 20GB, DEV1-M = 40GB)."
+  description = "Size in GB of the additional volume for the Talos EPHEMERAL partition (/dev/vdb). The boot image uses ~4.5GB on /dev/vda. If type is l_ssd, total size must not exceed the instance-type local-SSD allowance (e.g., DEV1-S = 20GB, DEV1-M = 40GB); for b_ssd you're billed per GB and the lower bound is the provider's block-volume minimum."
 
   validation {
     condition     = var.talos_ephemeral_volume_size_gb >= 5
     error_message = "Ephemeral volume must be at least 5GB."
+  }
+}
+
+variable "talos_ephemeral_volume_type" {
+  type        = string
+  default     = "l_ssd"
+  description = "Scaleway volume type for the Talos EPHEMERAL partition. Use l_ssd for DEV1-* instance types (built-in local SSD; volume cost included). Use b_ssd for PRO2-* / PROD2-* / ENT1-* and any other family that does not ship with local SSD — those reject lssd attachments at the API level."
+
+  validation {
+    condition     = contains(["l_ssd", "b_ssd"], var.talos_ephemeral_volume_type)
+    error_message = "talos_ephemeral_volume_type must be one of: l_ssd, b_ssd."
   }
 }
 

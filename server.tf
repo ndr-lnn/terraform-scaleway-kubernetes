@@ -74,7 +74,7 @@ resource "scaleway_instance_volume" "control_plane" {
   for_each = local.control_plane_servers_map
 
   name       = "${each.key}-data"
-  type       = "l_ssd"
+  type       = var.talos_ephemeral_volume_type
   size_in_gb = var.talos_ephemeral_volume_size_gb
   zone       = each.value.zone
 
@@ -134,7 +134,7 @@ resource "scaleway_instance_volume" "worker" {
   for_each = local.worker_servers_map
 
   name       = "${each.key}-data"
-  type       = "l_ssd"
+  type       = var.talos_ephemeral_volume_type
   size_in_gb = var.talos_ephemeral_volume_size_gb
   zone       = each.value.zone
 
