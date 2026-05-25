@@ -481,11 +481,11 @@ variable "talos_ephemeral_volume_size_gb" {
 variable "talos_ephemeral_volume_type" {
   type        = string
   default     = "l_ssd"
-  description = "Scaleway volume type for the Talos EPHEMERAL partition. Use l_ssd for DEV1-* instance types (built-in local SSD; volume cost included). Use b_ssd for PRO2-* / PROD2-* / ENT1-* and any other family that does not ship with local SSD — those reject lssd attachments at the API level."
+  description = "Scaleway volume type for the Talos EPHEMERAL partition. Use l_ssd for DEV1-* instance types (built-in local SSD; cost included in the instance). Use sbs_volume (Scaleway Block Storage) for PRO2-* / PROD2-* / ENT1-* and any other family that does not ship with local SSD. b_ssd was the previous block-storage type but Scaleway has retired it — it is rejected by the API."
 
   validation {
-    condition     = contains(["l_ssd", "b_ssd"], var.talos_ephemeral_volume_type)
-    error_message = "talos_ephemeral_volume_type must be one of: l_ssd, b_ssd."
+    condition     = contains(["l_ssd", "sbs_volume"], var.talos_ephemeral_volume_type)
+    error_message = "talos_ephemeral_volume_type must be one of: l_ssd, sbs_volume. (b_ssd was retired and is rejected by the Scaleway API.)"
   }
 }
 
