@@ -500,6 +500,17 @@ variable "talos_ephemeral_volume_iops" {
   }
 }
 
+variable "talos_root_volume_size_gb" {
+  type        = number
+  default     = 10
+  description = "Size in GB of the SBS-backed root volume (/dev/vda) carrying the Talos boot image. Only consumed when talos_ephemeral_volume_type = \"sbs_volume\" (non-DEV1 instance families that reject lssd, including for the root disk). The Talos qcow2 image is ~4.5GB so 10GB leaves headroom for kernel/initrd swaps. Reuses the same IOPS value as the ephemeral volume."
+
+  validation {
+    condition     = var.talos_root_volume_size_gb >= 5
+    error_message = "Root volume must be at least 5GB."
+  }
+}
+
 # Talos
 variable "talos_version" {
   type        = string

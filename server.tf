@@ -64,6 +64,19 @@ resource "scaleway_instance_server" "control_plane" {
   security_group_id  = local.security_group_id
   placement_group_id = scaleway_instance_placement_group.control_plane.id
 
+  # PRO2-* / PROD2-* / ENT1-* and other non-DEV1 instance families reject ANY
+  # lssd attachment, including the implicit root volume. Use an SBS root volume
+  # whenever the ephemeral path is also SBS — that's a clean proxy for "this
+  # instance family does not support lssd at all".
+  dynamic "root_volume" {
+    for_each = local.ephemeral_use_sbs ? [1] : []
+    content {
+      volume_type = "sbs_volume"
+      sbs_iops    = var.talos_ephemeral_volume_iops
+      size_in_gb  = var.talos_root_volume_size_gb
+    }
+  }
+
   additional_volume_ids = [
     local.ephemeral_use_sbs ?
     scaleway_block_volume.control_plane[each.key].id :
@@ -138,6 +151,16 @@ resource "scaleway_instance_server" "worker" {
     scaleway_instance_placement_group.worker["${var.cluster_name}-${each.value.name}-pg-${ceil(each.value.index / 20.0)}"].id :
     null
   )
+
+  # See control_plane.root_volume comment for the rationale.
+  dynamic "root_volume" {
+    for_each = local.ephemeral_use_sbs ? [1] : []
+    content {
+      volume_type = "sbs_volume"
+      sbs_iops    = var.talos_ephemeral_volume_iops
+      size_in_gb  = var.talos_root_volume_size_gb
+    }
+  }
 
   additional_volume_ids = [
     local.ephemeral_use_sbs ?
