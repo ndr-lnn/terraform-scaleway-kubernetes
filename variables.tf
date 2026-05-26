@@ -481,11 +481,22 @@ variable "talos_ephemeral_volume_size_gb" {
 variable "talos_ephemeral_volume_type" {
   type        = string
   default     = "l_ssd"
-  description = "Scaleway volume type for the Talos EPHEMERAL partition. Use l_ssd for DEV1-* instance types (built-in local SSD; cost included in the instance). Use sbs_volume (Scaleway Block Storage) for PRO2-* / PROD2-* / ENT1-* and any other family that does not ship with local SSD. b_ssd was the previous block-storage type but Scaleway has retired it — it is rejected by the API."
+  description = "Scaleway volume type for the Talos EPHEMERAL partition. Use l_ssd for DEV1-* instance types (built-in local SSD; cost included in the instance) — provisioned via scaleway_instance_volume. Use sbs_volume (Scaleway Block Storage) for PRO2-* / PROD2-* / ENT1-* and any other family that does not ship with local SSD — provisioned via scaleway_block_volume. b_ssd was the previous block-storage type but Scaleway has retired it — it is rejected by the API."
 
   validation {
     condition     = contains(["l_ssd", "sbs_volume"], var.talos_ephemeral_volume_type)
     error_message = "talos_ephemeral_volume_type must be one of: l_ssd, sbs_volume. (b_ssd was retired and is rejected by the Scaleway API.)"
+  }
+}
+
+variable "talos_ephemeral_volume_iops" {
+  type        = number
+  default     = 5000
+  description = "Provisioned IOPS for the SBS-backed Talos EPHEMERAL volume. Only consumed when talos_ephemeral_volume_type = \"sbs_volume\". Scaleway Block Storage supports two tiers: 5000 (sbs_5k) and 15000 (sbs_15k)."
+
+  validation {
+    condition     = contains([5000, 15000], var.talos_ephemeral_volume_iops)
+    error_message = "Scaleway SBS supports IOPS values 5000 or 15000."
   }
 }
 

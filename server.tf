@@ -26,6 +26,12 @@ locals {
       }
     }
   ]...)
+
+  # The Talos ephemeral partition lives on either a legacy compute volume
+  # (l_ssd via scaleway_instance_volume) or an SBS volume (sbs_volume via
+  # scaleway_block_volume). scaleway_instance_volume.type does not accept
+  # sbs_volume, so the resource has to be picked at plan time.
+  ephemeral_use_sbs = var.talos_ephemeral_volume_type == "sbs_volume"
 }
 
 # ─── Public IPs (separate resources on Scaleway) ────────────────────────────
@@ -58,7 +64,11 @@ resource "scaleway_instance_server" "control_plane" {
   security_group_id  = local.security_group_id
   placement_group_id = scaleway_instance_placement_group.control_plane.id
 
-  additional_volume_ids = [scaleway_instance_volume.control_plane[each.key].id]
+  additional_volume_ids = [
+    local.ephemeral_use_sbs ?
+    scaleway_block_volume.control_plane[each.key].id :
+    scaleway_instance_volume.control_plane[each.key].id
+  ]
 
   tags = [var.cluster_name, "role=control-plane", "nodepool=${each.value.name}"]
 
@@ -71,10 +81,21 @@ resource "scaleway_instance_server" "control_plane" {
 }
 
 resource "scaleway_instance_volume" "control_plane" {
-  for_each = local.control_plane_servers_map
+  for_each = local.ephemeral_use_sbs ? {} : local.control_plane_servers_map
 
   name       = "${each.key}-data"
   type       = var.talos_ephemeral_volume_type
+  size_in_gb = var.talos_ephemeral_volume_size_gb
+  zone       = each.value.zone
+
+  tags = [var.cluster_name, "role=control-plane"]
+}
+
+resource "scaleway_block_volume" "control_plane" {
+  for_each = local.ephemeral_use_sbs ? local.control_plane_servers_map : {}
+
+  name       = "${each.key}-data"
+  iops       = var.talos_ephemeral_volume_iops
   size_in_gb = var.talos_ephemeral_volume_size_gb
   zone       = each.value.zone
 
@@ -118,7 +139,11 @@ resource "scaleway_instance_server" "worker" {
     null
   )
 
-  additional_volume_ids = [scaleway_instance_volume.worker[each.key].id]
+  additional_volume_ids = [
+    local.ephemeral_use_sbs ?
+    scaleway_block_volume.worker[each.key].id :
+    scaleway_instance_volume.worker[each.key].id
+  ]
 
   tags = [var.cluster_name, "role=worker", "nodepool=${each.value.name}"]
 
@@ -131,10 +156,21 @@ resource "scaleway_instance_server" "worker" {
 }
 
 resource "scaleway_instance_volume" "worker" {
-  for_each = local.worker_servers_map
+  for_each = local.ephemeral_use_sbs ? {} : local.worker_servers_map
 
   name       = "${each.key}-data"
   type       = var.talos_ephemeral_volume_type
+  size_in_gb = var.talos_ephemeral_volume_size_gb
+  zone       = each.value.zone
+
+  tags = [var.cluster_name, "role=worker"]
+}
+
+resource "scaleway_block_volume" "worker" {
+  for_each = local.ephemeral_use_sbs ? local.worker_servers_map : {}
+
+  name       = "${each.key}-data"
+  iops       = var.talos_ephemeral_volume_iops
   size_in_gb = var.talos_ephemeral_volume_size_gb
   zone       = each.value.zone
 
