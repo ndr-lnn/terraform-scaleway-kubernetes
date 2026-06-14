@@ -1850,9 +1850,12 @@ variable "volume_snapshot_crds_enabled" {
 }
 
 variable "volume_snapshot_crds_version" {
-  type        = string
-  default     = "v8.3.0" # https://github.com/kubernetes-csi/external-snapshotter
-  description = "Specifies the version (git tag) of the external-snapshotter VolumeSnapshot Custom Resource Definitions (CRDs) to deploy. Should match the snapshot-controller/csi-snapshotter image versions shipped by the Scaleway CSI chart."
+  type = string
+  # Pinned to an immutable commit SHA (== tag v8.3.0) so the fetched CRD manifests
+  # cannot drift if the tag is ever moved. https://github.com/kubernetes-csi/external-snapshotter
+  # NOTE: prometheus_operator_crds / gateway_api_crds remain tag-pinned for now (known follow-up).
+  default     = "6b2feaaf7fc3d6d0fe21029d1032ea0eee2081e9"
+  description = "Specifies the git ref (commit SHA == tag v8.3.0) of the external-snapshotter VolumeSnapshot Custom Resource Definitions (CRDs) to deploy. Should match the snapshot-controller/csi-snapshotter image versions shipped by the Scaleway CSI chart."
 }
 
 
