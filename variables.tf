@@ -1842,6 +1842,20 @@ variable "gateway_api_crds_release_channel" {
 }
 
 
+# Volume Snapshot CRDs
+variable "volume_snapshot_crds_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the external-snapshotter VolumeSnapshot Custom Resource Definitions (CRDs) deployment. Required by the snapshot-controller bundled in the Scaleway CSI chart; without these CRDs that container crashloops."
+}
+
+variable "volume_snapshot_crds_version" {
+  type        = string
+  default     = "v8.3.0" # https://github.com/kubernetes-csi/external-snapshotter
+  description = "Specifies the version (git tag) of the external-snapshotter VolumeSnapshot Custom Resource Definitions (CRDs) to deploy. Should match the snapshot-controller/csi-snapshotter image versions shipped by the Scaleway CSI chart."
+}
+
+
 # Prometheus Operator CRDs
 variable "prometheus_operator_crds_enabled" {
   type        = bool
