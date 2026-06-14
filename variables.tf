@@ -1842,6 +1842,23 @@ variable "gateway_api_crds_release_channel" {
 }
 
 
+# Volume Snapshot CRDs
+variable "volume_snapshot_crds_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the external-snapshotter VolumeSnapshot Custom Resource Definitions (CRDs) deployment. Required by the snapshot-controller bundled in the Scaleway CSI chart; without these CRDs that container crashloops."
+}
+
+variable "volume_snapshot_crds_version" {
+  type = string
+  # Pinned to an immutable commit SHA (== tag v8.3.0) so the fetched CRD manifests
+  # cannot drift if the tag is ever moved. https://github.com/kubernetes-csi/external-snapshotter
+  # NOTE: prometheus_operator_crds / gateway_api_crds remain tag-pinned for now (known follow-up).
+  default     = "6b2feaaf7fc3d6d0fe21029d1032ea0eee2081e9"
+  description = "Specifies the git ref (commit SHA == tag v8.3.0) of the external-snapshotter VolumeSnapshot Custom Resource Definitions (CRDs) to deploy. Should match the snapshot-controller/csi-snapshotter image versions shipped by the Scaleway CSI chart."
+}
+
+
 # Prometheus Operator CRDs
 variable "prometheus_operator_crds_enabled" {
   type        = bool
