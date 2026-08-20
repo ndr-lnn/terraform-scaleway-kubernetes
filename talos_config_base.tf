@@ -1,4 +1,9 @@
 locals {
+  # Boot/data device names depend on the storage backend — see the EPHEMERAL
+  # VolumeConfig below for the measured evidence. SBS enumerates as sd*,
+  # legacy l_ssd compute volumes as vd*.
+  talos_data_disk = local.ephemeral_use_sbs ? "/dev/sdb" : "/dev/vdb"
+
   # Talos and Kubernetes Certificates
   talos_certificate_san = sort(
     distinct(
@@ -140,8 +145,20 @@ locals {
         encryption = local.talos_system_volume_encryption
       }
     ] : [],
-    # Scaleway: EPHEMERAL partition must be on /dev/vdb (additional volume)
-    # because the boot image on /dev/vda is only 4.5GB and cannot be resized
+    # Scaleway: EPHEMERAL lives on the additional volume, not the boot disk.
+    #
+    # ⚠️ The device name differs by storage backend, and this is NOT cosmetic:
+    #   l_ssd (legacy compute volumes) -> /dev/vda (boot) + /dev/vdb (data)
+    #   SBS   (scaleway_block_volume)  -> /dev/sda (boot) + /dev/sdb (data)
+    #
+    # Measured on a standalone spike 2026-08-20 (POP2-2C-8G, fr-par-1, Talos
+    # v1.12.6): `talosctl get disks` reported sda 10GB and sdb 15GB, both
+    # transport=virtio model=sbs, with SystemDisk=sda.
+    #
+    # A hardcoded /dev/vdb therefore matches NOTHING on an SBS family. That
+    # fails quietly: the node can still report Ready on first boot while
+    # EPHEMERAL was never provisioned, or Talos can install onto the boot
+    # volume. Keep this selector in step with local.ephemeral_use_sbs.
     [
       {
         apiVersion = "v1alpha1"
@@ -149,7 +166,7 @@ locals {
         name       = "EPHEMERAL"
         provisioning = {
           diskSelector = {
-            match = "disk.dev_path == '/dev/vdb'"
+            match = "disk.dev_path == '${local.talos_data_disk}'"
           }
           minSize = "2GB"
           maxSize = "40GB"
@@ -212,7 +229,7 @@ locals {
     [{
       machine = {
         install = {
-          disk            = "/dev/vdb"
+          disk            = local.talos_data_disk
           wipe            = true
           image           = local.talos_installer_image_url
           extraKernelArgs = var.talos_extra_kernel_args

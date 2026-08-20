@@ -500,6 +500,17 @@ variable "talos_ephemeral_volume_iops" {
   }
 }
 
+variable "talos_root_volume_iops" {
+  type        = number
+  default     = 5000
+  description = "Provisioned IOPS for the SBS-backed Talos ROOT volume (/dev/sda), which carries the boot image. Only consumed when talos_ephemeral_volume_type = \"sbs_volume\". Kept separate from talos_ephemeral_volume_iops so raising the data tier to 15000 does not silently raise root cost too. Verified 2026-08-20 that a volume created from an IMPORTED block snapshot accepts 15000 as an in-place update."
+
+  validation {
+    condition     = contains([5000, 15000], var.talos_root_volume_iops)
+    error_message = "talos_root_volume_iops must be 5000 (sbs_5k) or 15000 (sbs_15k)."
+  }
+}
+
 variable "talos_root_volume_size_gb" {
   type        = number
   default     = 10
