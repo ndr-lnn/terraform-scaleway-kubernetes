@@ -1882,3 +1882,61 @@ variable "prometheus_operator_crds_version" {
   default     = "v0.90.1" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
 }
+
+variable "kubelet_csr_approver_enabled" {
+  type        = bool
+  default     = true
+  description = "Deploys kubelet-csr-approver. Talos enables rotate-server-certificates, so every kubelet requests a SERVING certificate via the CSR API, and Kubernetes ships no built-in approver for the kubelet-serving signer (only the two client signers are auto-approved). Without this the CSRs stay Pending: kubectl logs/exec eventually fail with `tls: internal error` and metrics-server cannot scrape. Default true because a cluster without it is broken-on-a-timer rather than broken-on-arrival."
+}
+
+variable "kubelet_csr_approver_provider_regex" {
+  type        = string
+  default     = null
+  description = "Regex a node name must match for its serving CSR to be approved. Defaults to \"^<cluster_name>-[a-z0-9.-]+$\", i.e. only this cluster's own nodes. Set explicitly if node names do not start with the cluster name. Deliberately NOT \".*\" — the regex is the security boundary when DNS resolution is bypassed."
+
+  validation {
+    condition     = var.kubelet_csr_approver_provider_regex == null || try(length(var.kubelet_csr_approver_provider_regex) > 0, false)
+    error_message = "kubelet_csr_approver_provider_regex must be null (use the cluster-name default) or a non-empty regex. An empty value would approve any node name."
+  }
+}
+
+variable "kubelet_csr_approver_bypass_dns_resolution" {
+  type        = bool
+  default     = true
+  description = "Skips the DNS check that the node name resolves to the SAN IPs. Defaults true because Talos node names are not in any DNS zone — with resolution enabled every CSR is DENIED, which is worse than Pending since denied CSRs are not retried. Set false only where node names are genuinely resolvable."
+}
+
+variable "kubelet_csr_approver_replicas" {
+  type        = number
+  default     = 2
+  description = "Replica count, clamped to the control-plane count. Leader election is enabled automatically when more than one."
+
+  validation {
+    condition     = var.kubelet_csr_approver_replicas >= 1
+    error_message = "kubelet_csr_approver_replicas must be at least 1."
+  }
+}
+
+variable "kubelet_csr_approver_helm_repository" {
+  type        = string
+  default     = "https://postfinance.github.io/kubelet-csr-approver"
+  description = "URL of the Helm repository where the kubelet-csr-approver chart is located."
+}
+
+variable "kubelet_csr_approver_helm_chart" {
+  type        = string
+  default     = "kubelet-csr-approver"
+  description = "Name of the kubelet-csr-approver Helm chart."
+}
+
+variable "kubelet_csr_approver_helm_version" {
+  type        = string
+  default     = "1.2.14"
+  description = "Version of the kubelet-csr-approver Helm chart."
+}
+
+variable "kubelet_csr_approver_helm_values" {
+  type        = any
+  default     = {}
+  description = "Additional Helm values for kubelet-csr-approver, merged last."
+}
