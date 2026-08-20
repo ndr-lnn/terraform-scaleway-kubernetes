@@ -30,11 +30,18 @@
 # validated as non-empty below rather than being allowed to default to ".*".
 
 locals {
-  # Anchored to this cluster's own naming, so a CSR whose node name does not
-  # look like one of ours is not approved.
+  # ⚠️ providerRegex is matched against EVERY DNS SAN in the request, not just
+  # the node name. On Scaleway the CCM publishes an ExternalDNS node address of
+  # the form <instance-uuid>.pub.instances.scw.cloud, and the kubelet copies it
+  # into the serving-cert SANs alongside the node name. A regex anchored only to
+  # the cluster name therefore DENIES every worker CSR.
+  #
+  # Both alternatives are required. Verified against a real request:
+  #   DNS:8c74....pub.instances.scw.cloud, DNS:<cluster>-worker-2,
+  #   IP:<private>, IP:<public>
   kubelet_csr_approver_provider_regex = coalesce(
     var.kubelet_csr_approver_provider_regex,
-    "^${var.cluster_name}-[a-z0-9.-]+$"
+    "^(${var.cluster_name}-[a-z0-9.-]+|[0-9a-f-]+\\.pub\\.instances\\.scw\\.cloud)$"
   )
 
   kubelet_csr_approver_replicas = min(
@@ -60,6 +67,16 @@ data "helm_template" "kubelet_csr_approver" {
       providerRegex       = local.kubelet_csr_approver_provider_regex
       bypassDnsResolution = var.kubelet_csr_approver_bypass_dns_resolution
       leaderElection      = local.kubelet_csr_approver_replicas > 1
+
+      # Two DNS SANs on Scaleway: the node name plus the CCM's ExternalDNS
+      # entry. The chart default of 1 denies every worker CSR.
+      allowedDnsNames = var.kubelet_csr_approver_allowed_dns_names
+
+      # The approver otherwise requires every additional DNS SAN to be PREFIXED
+      # by the node name (e.g. node.example.com). Scaleway's UUID-based public
+      # DNS name can never satisfy that, so the check has to be off or no worker
+      # CSR is ever approvable. providerRegex remains the boundary.
+      bypassHostnameCheck = var.kubelet_csr_approver_bypass_hostname_check
 
       # Runs on the control plane: it is a cluster-critical admission-time
       # component, and a worker-only placement would make new-worker bring-up
