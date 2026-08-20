@@ -50,13 +50,40 @@ resource "scaleway_instance_ip" "worker" {
 
 # ─── Control Plane Servers ───────────────────────────────────────────────────
 
+# ─── SBS Root Volumes (one per server, from the zonal block snapshot) ───────
+#
+# Only created on the SBS path. Sized/IOPS'd here rather than inside the
+# server's root_volume block — see the comment there.
+resource "scaleway_block_volume" "control_plane_root" {
+  for_each = local.ephemeral_use_sbs ? local.control_plane_servers_map : {}
+
+  name        = "${each.key}-root"
+  zone        = each.value.zone
+  snapshot_id = local.sbs_root_snapshots["${startswith(upper(each.value.server_type), "COPARM1") ? "arm64" : "amd64"}/${each.value.zone}"]
+  iops        = var.talos_root_volume_iops
+  size_in_gb  = var.talos_root_volume_size_gb
+
+  tags = [var.cluster_name, "role=control-plane", "node=${each.key}"]
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(local.sbs_root_snapshots), "${startswith(upper(each.value.server_type), "COPARM1") ? "arm64" : "amd64"}/${each.value.zone}")
+      error_message = "No SBS root snapshot for ${each.key}: no image built for its architecture in zone ${each.value.zone}. Without this guard snapshot_id would be null and Scaleway would create a BLANK volume that boots nothing, with no error."
+    }
+  }
+}
+
 resource "scaleway_instance_server" "control_plane" {
   for_each = local.control_plane_servers_map
 
-  name  = each.key
-  type  = each.value.server_type
-  image = startswith(upper(each.value.server_type), "COPARM1") ? local.talos_image_arm64_id : local.talos_image_amd64_id
-  zone  = each.value.zone
+  name = each.key
+  type = each.value.server_type
+  # `image` and `root_volume.0.volume_id` are ExactlyOneOf in the provider, so
+  # the SBS path MUST omit the image and boot from the pre-created root volume.
+  image = local.ephemeral_use_sbs ? null : (
+    startswith(upper(each.value.server_type), "COPARM1") ? local.talos_image_arm64_id : local.talos_image_amd64_id
+  )
+  zone = each.value.zone
 
   ip_id = var.talos_public_ipv4_enabled ? scaleway_instance_ip.control_plane[each.key].id : null
   # Note: IPv6 on Scaleway is enabled at the instance type level, not per-server
@@ -71,9 +98,18 @@ resource "scaleway_instance_server" "control_plane" {
   dynamic "root_volume" {
     for_each = local.ephemeral_use_sbs ? [1] : []
     content {
+      volume_id   = scaleway_block_volume.control_plane_root[each.key].id
       volume_type = "sbs_volume"
-      sbs_iops    = var.talos_ephemeral_volume_iops
-      size_in_gb  = var.talos_root_volume_size_gb
+      # delete_on_termination defaults to TRUE, which would let Scaleway
+      # delete a Terraform-managed volume on instance termination: destroy
+      # then 404s, and a replacement points the new server at a deleted
+      # UUID and fails mid-apply. Terraform owns this volume's lifecycle.
+      delete_on_termination = false
+      # NO size_in_gb / sbs_iops here. With volume_id set, the provider
+      # sends Size only when ID == "" (instancehelpers/block.go), so they
+      # are ignored at create and then, being Optional+Computed, produce a
+      # permanent diff that turns into a resize. They belong on the
+      # scaleway_block_volume resource instead.
     }
   }
 
@@ -134,13 +170,40 @@ data "scaleway_ipam_ip" "control_plane" {
 
 # ─── Worker Servers ──────────────────────────────────────────────────────────
 
+# ─── SBS Root Volumes (one per server, from the zonal block snapshot) ───────
+#
+# Only created on the SBS path. Sized/IOPS'd here rather than inside the
+# server's root_volume block — see the comment there.
+resource "scaleway_block_volume" "worker_root" {
+  for_each = local.ephemeral_use_sbs ? local.worker_servers_map : {}
+
+  name        = "${each.key}-root"
+  zone        = each.value.zone
+  snapshot_id = local.sbs_root_snapshots["${startswith(upper(each.value.server_type), "COPARM1") ? "arm64" : "amd64"}/${each.value.zone}"]
+  iops        = var.talos_root_volume_iops
+  size_in_gb  = var.talos_root_volume_size_gb
+
+  tags = [var.cluster_name, "role=worker", "node=${each.key}"]
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(local.sbs_root_snapshots), "${startswith(upper(each.value.server_type), "COPARM1") ? "arm64" : "amd64"}/${each.value.zone}")
+      error_message = "No SBS root snapshot for ${each.key}: no image built for its architecture in zone ${each.value.zone}. Without this guard snapshot_id would be null and Scaleway would create a BLANK volume that boots nothing, with no error."
+    }
+  }
+}
+
 resource "scaleway_instance_server" "worker" {
   for_each = local.worker_servers_map
 
-  name  = each.key
-  type  = each.value.server_type
-  image = startswith(upper(each.value.server_type), "COPARM1") ? local.talos_image_arm64_id : local.talos_image_amd64_id
-  zone  = each.value.zone
+  name = each.key
+  type = each.value.server_type
+  # `image` and `root_volume.0.volume_id` are ExactlyOneOf in the provider, so
+  # the SBS path MUST omit the image and boot from the pre-created root volume.
+  image = local.ephemeral_use_sbs ? null : (
+    startswith(upper(each.value.server_type), "COPARM1") ? local.talos_image_arm64_id : local.talos_image_amd64_id
+  )
+  zone = each.value.zone
 
   ip_id = var.talos_public_ipv4_enabled ? scaleway_instance_ip.worker[each.key].id : null
   # Note: IPv6 on Scaleway is enabled at the instance type level, not per-server
@@ -156,9 +219,18 @@ resource "scaleway_instance_server" "worker" {
   dynamic "root_volume" {
     for_each = local.ephemeral_use_sbs ? [1] : []
     content {
+      volume_id   = scaleway_block_volume.worker_root[each.key].id
       volume_type = "sbs_volume"
-      sbs_iops    = var.talos_ephemeral_volume_iops
-      size_in_gb  = var.talos_root_volume_size_gb
+      # delete_on_termination defaults to TRUE, which would let Scaleway
+      # delete a Terraform-managed volume on instance termination: destroy
+      # then 404s, and a replacement points the new server at a deleted
+      # UUID and fails mid-apply. Terraform owns this volume's lifecycle.
+      delete_on_termination = false
+      # NO size_in_gb / sbs_iops here. With volume_id set, the provider
+      # sends Size only when ID == "" (instancehelpers/block.go), so they
+      # are ignored at create and then, being Optional+Computed, produce a
+      # permanent diff that turns into a resize. They belong on the
+      # scaleway_block_volume resource instead.
     }
   }
 

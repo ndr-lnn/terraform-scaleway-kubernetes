@@ -31,8 +31,30 @@ locals {
     )
   )
 
-  talos_image_amd64_id = local.amd64_image_required ? scaleway_instance_image.talos_amd64[0].id : null
-  talos_image_arm64_id = local.arm64_image_required ? scaleway_instance_image.talos_arm64[0].id : null
+  # ⚠️ These guards MUST mirror the count expressions on the resources below.
+  # The legacy instance images are only created on the l_ssd path, so widening
+  # the resource count without widening these produces an index-out-of-range on
+  # the SBS path. Do NOT "fix" that with try() — it would swallow unrelated
+  # errors; keep the condition explicit.
+  talos_image_amd64_id = local.amd64_image_required && !local.ephemeral_use_sbs ? scaleway_instance_image.talos_amd64[0].id : null
+  talos_image_arm64_id = local.arm64_image_required && !local.ephemeral_use_sbs ? scaleway_instance_image.talos_arm64[0].id : null
+
+  # Zones that need an SBS root snapshot. Block snapshots and volumes are ZONAL
+  # while the image bucket is REGIONAL, and nodepools each carry their own zone,
+  # so one snapshot per distinct zone is required. A single un-zoned snapshot
+  # would silently inherit the provider default zone and fail to attach for any
+  # nodepool placed elsewhere.
+  sbs_zones = local.ephemeral_use_sbs ? toset(distinct(concat(
+    [for np in local.control_plane_nodepools : np.zone],
+    [for np in local.worker_nodepools : np.zone],
+  ))) : toset([])
+
+  # arch/zone -> block snapshot id, so a server can resolve its root snapshot
+  # without indexing a resource that may have no instances for its arch.
+  sbs_root_snapshots = merge(
+    { for z, s in scaleway_block_snapshot.talos_amd64 : "amd64/${z}" => s.id },
+    { for z, s in scaleway_block_snapshot.talos_arm64 : "arm64/${z}" => s.id },
+  )
 }
 
 data "talos_image_factory_extensions_versions" "this" {
@@ -179,7 +201,7 @@ resource "scaleway_object" "talos_image_arm64" {
 # ─── Snapshot Import ────────────────────────────────────────────────────────
 
 resource "scaleway_instance_snapshot" "talos_amd64" {
-  count = local.amd64_image_required ? 1 : 0
+  count = local.amd64_image_required && !local.ephemeral_use_sbs ? 1 : 0
 
   name = "talos-${var.talos_version}-${local.talos_schematic_id}-amd64"
   import {
@@ -190,7 +212,7 @@ resource "scaleway_instance_snapshot" "talos_amd64" {
 }
 
 resource "scaleway_instance_snapshot" "talos_arm64" {
-  count = local.arm64_image_required ? 1 : 0
+  count = local.arm64_image_required && !local.ephemeral_use_sbs ? 1 : 0
 
   name = "talos-${var.talos_version}-${local.talos_schematic_id}-arm64"
   import {
@@ -203,7 +225,7 @@ resource "scaleway_instance_snapshot" "talos_arm64" {
 # ─── Bootable Images ────────────────────────────────────────────────────────
 
 resource "scaleway_instance_image" "talos_amd64" {
-  count = local.amd64_image_required ? 1 : 0
+  count = local.amd64_image_required && !local.ephemeral_use_sbs ? 1 : 0
 
   name           = "talos-${var.talos_version}-${local.talos_schematic_id}-amd64"
   root_volume_id = scaleway_instance_snapshot.talos_amd64[0].id
@@ -212,10 +234,58 @@ resource "scaleway_instance_image" "talos_amd64" {
 }
 
 resource "scaleway_instance_image" "talos_arm64" {
-  count = local.arm64_image_required ? 1 : 0
+  count = local.arm64_image_required && !local.ephemeral_use_sbs ? 1 : 0
 
   name           = "talos-${var.talos_version}-${local.talos_schematic_id}-arm64"
   root_volume_id = scaleway_instance_snapshot.talos_arm64[0].id
   architecture   = "arm64"
   tags           = [var.cluster_name, "os=talos", "talos_version=${var.talos_version}"]
+}
+
+# ─── SBS Root Snapshots (modern, lssd-free instance families) ───────────────
+#
+# Modern Scaleway families (POP2-*, PRO2-*, BASIC2/3-*, PLAY2-*, COMPUTE3-*,
+# MEMORY3-*, STANDARD2/3-*) reject ANY lssd attachment, including the implicit
+# root volume, so the legacy
+#     qcow2 -> scaleway_instance_snapshot -> scaleway_instance_image
+# path cannot be used: the snapshot it produces is lssd-typed and the API
+# refuses it with "requested volume type does not match the snapshot type".
+#
+# The Block API is the only route. Note the import block lives on the SNAPSHOT,
+# not on scaleway_block_volume (which has no import block at all) — this is the
+# detail that cost releases v0.3.3 through v0.3.6.
+#
+# Verified end-to-end on a standalone spike, 2026-08-20, provider 2.76.0,
+# POP2-2C-8G / fr-par-1 / Talos v1.12.6: import 11s, volume 6s, instance boots
+# into maintenance mode, survives a power cycle, and re-plans clean.
+#
+# `zone` is explicit: block snapshots are zonal and would otherwise inherit the
+# provider default, silently breaking any nodepool placed in another zone.
+
+resource "scaleway_block_snapshot" "talos_amd64" {
+  for_each = local.amd64_image_required && local.ephemeral_use_sbs ? local.sbs_zones : toset([])
+
+  name = "talos-${var.talos_version}-${local.talos_schematic_id}-amd64"
+  zone = each.value
+
+  import {
+    bucket = scaleway_object.talos_image_amd64[0].bucket
+    key    = scaleway_object.talos_image_amd64[0].key
+  }
+
+  tags = [var.cluster_name, "os=talos", "talos_version=${var.talos_version}", "arch=amd64"]
+}
+
+resource "scaleway_block_snapshot" "talos_arm64" {
+  for_each = local.arm64_image_required && local.ephemeral_use_sbs ? local.sbs_zones : toset([])
+
+  name = "talos-${var.talos_version}-${local.talos_schematic_id}-arm64"
+  zone = each.value
+
+  import {
+    bucket = scaleway_object.talos_image_arm64[0].bucket
+    key    = scaleway_object.talos_image_arm64[0].key
+  }
+
+  tags = [var.cluster_name, "os=talos", "talos_version=${var.talos_version}", "arch=arm64"]
 }
