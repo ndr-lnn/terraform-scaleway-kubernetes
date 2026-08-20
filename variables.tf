@@ -1940,3 +1940,20 @@ variable "kubelet_csr_approver_helm_values" {
   default     = {}
   description = "Additional Helm values for kubelet-csr-approver, merged last."
 }
+
+variable "kubelet_csr_approver_allowed_dns_names" {
+  type        = number
+  default     = 2
+  description = "Maximum DNS SANs permitted in a kubelet serving CSR. Default 2, not the chart's 1: on Scaleway the CCM publishes an ExternalDNS node address (<instance-uuid>.pub.instances.scw.cloud) which the kubelet copies into the SANs alongside the node name, so a limit of 1 denies every worker CSR."
+
+  validation {
+    condition     = var.kubelet_csr_approver_allowed_dns_names >= 1
+    error_message = "kubelet_csr_approver_allowed_dns_names must be at least 1."
+  }
+}
+
+variable "kubelet_csr_approver_bypass_hostname_check" {
+  type        = bool
+  default     = true
+  description = "Disables the rule that every additional DNS SAN must be prefixed by the node name. Required on Scaleway: the CCM's ExternalDNS name is <instance-uuid>.pub.instances.scw.cloud, which is never prefixed by the node name, so with this check on no worker CSR is approvable. providerRegex remains the security boundary."
+}
